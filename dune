@@ -1,0 +1,5 @@
+
+
+(env
+  (_ (ocamlopt_flags :standard -inline 100)
+     (flags :standard -safe-string -warn-error -a+8)))
