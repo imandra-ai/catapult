@@ -11,6 +11,8 @@ module Int_map = Map.Make(struct
 type json = Yojson.Basic.json
 
 let program_start = Mtime_clock.now()
+let file = ref "trace.json"
+let set_file f = file := f
 
 let[@inline] now_ () : float =
   let now = Mtime_clock.now() in
@@ -141,7 +143,7 @@ end
 module Backend() : P.BACKEND = struct
   let get_ts = now_
 
-  let state = State.create ~filename:"trace.json"
+  let state = State.create ~filename:!file
   let teardown () = State.close state
 
   module Out = struct

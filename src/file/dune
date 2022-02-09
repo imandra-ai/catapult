@@ -3,4 +3,5 @@
   (synopsis "Catapult backend that logs to a file directly")
   (name catapult_file)
   (public_name catapult-file)
-  (libraries catapult mtime mtime.clock.os yojson camlzip threads.posix))
+  (libraries catapult mtime mtime.clock.os yojson
+             threads.posix))

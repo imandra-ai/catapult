@@ -14,3 +14,6 @@ include Catapult.IMPL
 
 val enable : unit -> unit
 (** Enable manually *)
+
+val set_file : string -> unit
+(** Set output file. Call before {!setup}. *)

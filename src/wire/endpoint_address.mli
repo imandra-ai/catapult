@@ -7,6 +7,7 @@ type t =
 
 val to_string : t -> string
 val of_string : string -> t option
+val of_string_exn : string -> t
 
 val default : t
 (** Default address. *)

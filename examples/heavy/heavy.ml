@@ -14,9 +14,7 @@ let do_work () =
     ignore (Sys.opaque_identity (fib n) : int);
   done
 
-let () =
-  Catapult_file.with_setup @@ fun () ->
-  let n = try int_of_string (Sys.getenv "N") with _ -> 10 in
+let run n =
   Printf.printf "run %d iterations\n%!" n;
 
   for i = 1 to n do
@@ -28,3 +26,29 @@ let () =
     if i mod 3 = 0 then Gc.major();
   done
 
+
+let () =
+  let n = ref 10 in
+  let net = ref false in
+  let file = ref "trace.json" in
+  let addr = ref Catapult_client.default_endpoint in
+  let opts = [
+    "-n", Arg.Set_int n, " number of iterations";
+    "-o", Arg.Set_string file, " output file";
+    "--net", Arg.Set net, " use network client";
+    "--addr",
+    Arg.String (fun s -> addr := Catapult_client.Endpoint_address.of_string_exn s),
+    " network address";
+  ] |> Arg.align in
+  Arg.parse opts (fun _ -> ()) "heavy";
+
+  let run () = run !n in
+  if !net then (
+    Printf.printf "use net client %s\n%!" (Catapult_client.Endpoint_address.to_string !addr);
+    Catapult_client.set_endpoint !addr;
+    Catapult_client.with_setup run
+  ) else (
+    Printf.printf "write to file %S\n%!" !file;
+    Catapult_file.set_file !file;
+    Catapult_file.with_setup run
+  )
