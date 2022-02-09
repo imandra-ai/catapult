@@ -9,11 +9,12 @@ let rec fake_trace depth =
     Printf.printf "fake (depth=%d)\n%!" depth;
     fake_trace (depth+1);
     Thread.delay 0.2;
+    Tr.instant "iteration.done" ~args:["depth", `Int depth];
   )
 
 let () =
   Catapult_file.with_setup @@ fun () ->
-  let n = try int_of_string (Sys.getenv "N") with _ -> 200 in
+  let n = try int_of_string (Sys.getenv "N") with _ -> 10 in
   Printf.printf "run %d iterations\n%!" n;
 
   for _i = 1 to n do
