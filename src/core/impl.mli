@@ -1,4 +1,3 @@
-
 (** Actual logger *)
 
 (** Setting up and tearing down a concrete backend. *)

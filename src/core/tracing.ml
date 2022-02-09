@@ -212,3 +212,8 @@ let[@inline] f_step ?cat ?pid ?tid ?args name ~id =
   | None -> ()
   | Some b ->
     emit_real_ b  ?cat ?pid ?tid ?args name ~id F_t
+
+module Syntax = struct
+  let (let@) x f = x f
+end
+include Syntax

@@ -1,5 +1,11 @@
 
-(** Profiling probes *)
+(** Profiling probes.
+
+    This is the main API. The user can insert probes into their code, and
+    at runtime, these probes will use the {!Backend} (if present) to
+    emit tracing events to be replayed later. If no backend is present,
+    the probes will do nothing.
+*)
 
 type backend = (module Backend.S)
 
@@ -60,6 +66,11 @@ val counter : (cs:(string*int) list -> unit) emit_fun
 
 val meta_thread_name : string -> unit
 val meta_process_name : string -> unit
+
+module Syntax : sig
+  val (let@) : ('a -> 'b) -> 'a -> 'b
+end
+include module type of Syntax
 
 (** Controls the current backend. *)
 module Control : sig

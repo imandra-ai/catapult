@@ -1,0 +1,43 @@
+
+type Arg_value (i64 | string)
+
+type Arg {
+  key: string
+  value: Arg_value
+}
+
+type Extra {
+  key: string
+  value: string
+}
+
+# The main events to log
+type Event {
+  id: optional<string>
+  name: string
+  ph: i16
+  pid: int
+  tid: int
+  cat: optional<[]string>
+  ts_sec: f64
+  args: optional<[]Arg>
+  stack: optional<[]string>
+  dur: optional<f64>
+  extra: optional<[]Extra>
+}
+
+# Open a given trace file to emit events.
+type Client_open_trace {
+  # name of the trace
+  trace_id: string
+}
+
+# Emit an event. This will go into the trace specified with an
+# earlier "open trace".
+type Client_emit {
+  ev: Event
+}
+
+# Messages sent by the client.
+type Client_message (Client_open_trace | Client_emit)
+

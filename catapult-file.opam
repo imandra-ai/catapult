@@ -9,6 +9,7 @@ bug-reports: "https://github.com/AestheticIntegration/catapult.git/issues"
 depends: [
   "dune" {>= "2.0"}
   "mtime"
+  "catapult" {= version}
   "yojson" {>= "1.6" & < "2.0"}
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}

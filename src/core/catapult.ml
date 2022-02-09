@@ -23,3 +23,7 @@ module Arg = Arg
 module Tracing = Tracing
 
 module Control = Tracing.Control
+
+(**/**)
+module Atomic_shim_ = Atomic_shim_
+(**/**)

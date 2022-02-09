@@ -11,3 +11,6 @@
 
 
 include Catapult.IMPL
+
+val enable : unit -> unit
+(** Enable manually *)

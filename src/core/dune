@@ -5,3 +5,7 @@
   (libraries threads)
   (public_name catapult)
   (name catapult))
+
+(rule
+  (targets atomic_shim_.ml)
+  (action (with-stdout-to %{targets} (run gen/gen.exe))))

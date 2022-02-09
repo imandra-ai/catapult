@@ -19,6 +19,7 @@
   (synopsis "File logger for catapult")
   (depends
     mtime
+    (catapult (= :version))
     (yojson (and (>= 1.6) (< 2.0)))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
