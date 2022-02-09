@@ -42,7 +42,7 @@ let () =
   done
 ```
 
-If run with the `TEF=1` environment variable set, this will just produce a
+If run with the `TRACE=1` environment variable set, this will just produce a
 basic trace in the file "trace.json" (otherwise probes will do nothing and keep
 a minimal overhead).
 

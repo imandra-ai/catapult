@@ -251,7 +251,7 @@ module Backend() : P.BACKEND = struct
     ()
 end
 
-let tef_in_env() = List.mem (Sys.getenv_opt "TEF") [Some"1";Some"true"]
+let tef_in_env() = List.mem (Sys.getenv_opt "TRACE") [Some"1";Some"true"]
 
 let mk_lazy_enable getenv =
   let r = ref false in
