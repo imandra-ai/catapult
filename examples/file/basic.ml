@@ -19,5 +19,7 @@ let () =
 
   for _i = 1 to n do
     fake_trace 0;
+
+    if _i mod 3 = 0 then Gc.major();
   done
 

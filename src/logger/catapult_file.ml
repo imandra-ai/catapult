@@ -21,13 +21,14 @@ module State : sig
   type t
   val create : filename:string -> t
   val get_logger : t -> t_id:int -> t_logger
-  val send_msg : t_logger -> now:float -> (Buffer.t -> unit) -> unit
+  val send_msg : t_logger -> pid:int -> now:float -> (Buffer.t -> unit) -> unit
   val close : t -> unit
 end = struct
   type t_logger = {
     t_main: t;
     t_id: int; (* thread id *)
     t_buf: Buffer.t; (* used to print a json object *)
+    mutable t_active: bool; (* are we emitting an event already? *)
   }
 
   and t = {
@@ -79,7 +80,7 @@ end = struct
 
   let[@inline never] add_logger_ self ~t_id =
     let pt = {
-      t_id; t_buf=Buffer.create 128; t_main=self;
+      t_id; t_buf=Buffer.create 128; t_main=self; t_active=false;
     } in
     with_lock_ self
       (fun () -> self.per_t <- Int_map.add t_id pt self.per_t);
@@ -93,32 +94,37 @@ end = struct
     | exception Not_found -> add_logger_ self ~t_id
 
   (* emit a GC counter event *)
-  let emit_gc_ () =
+  let emit_gc_ ~pid () =
     let st = Gc.quick_stat() in
     Tracing.counter "gc" ~cs:[
-      "gc.major", st.Gc.major_collections;
-      "gc.minor", st.Gc.minor_collections;
-      "gc.compactions", st.Gc.compactions;
-      "gc.heap_words", st.Gc.heap_words;
-      "gc.heap_MB", (st.Gc.heap_words * (Sys.word_size / 8) / 1024 / 1024);
-      "gc.live_words", st.Gc.live_words;
-      "gc.minor_words", st.Gc.compactions;
+      (Printf.sprintf "%d.major" pid), st.Gc.major_collections;
+      (Printf.sprintf "%d.minor" pid), st.Gc.minor_collections;
+      (Printf.sprintf "%d.compactions" pid), st.Gc.compactions;
+      (Printf.sprintf "%d.heap_words" pid), st.Gc.heap_words;
+      (Printf.sprintf "%d.heap_MB" pid), (st.Gc.heap_words * (Sys.word_size / 8) / 1024 / 1024);
+      (Printf.sprintf "%d.minor_words" pid), (int_of_float st.Gc.minor_words);
     ]
 
-  let send_msg (pt:t_logger) ~now (f:Buffer.t -> unit) : unit =
+  let send_msg (pt:t_logger) ~pid ~now (f:Buffer.t -> unit) : unit =
     let self = pt.t_main in
     begin
-      (* possibly emit gc event *)
-      if false && now -. self.last_gc_stat > 0.1 then (
+      let old_active = pt.t_active in
+      let must_emit_gc_ = not pt.t_active && now -. self.last_gc_stat > 0.1 in
+      pt.t_active <- true;
+
+      (* time to emit some GC counters *)
+      if must_emit_gc_ then (
         self.last_gc_stat <- now;
-        emit_gc_();
+        emit_gc_ ~pid ();
       );
 
       let buf = pt.t_buf in
       Buffer.clear buf;
       f buf;
       assert (pt.t_id = Thread.id (Thread.self()));
-      emit_buf_ self pt
+      emit_buf_ self pt;
+
+      pt.t_active <- old_active;
     end
 end
 
@@ -184,7 +190,7 @@ module Backend() : P.BACKEND = struct
        output. We just provide a callback that, given the buffer,
        writes the JSON into it. *)
     let logger = State.get_logger state ~t_id:(Thread.id (Thread.self())) in
-    State.send_msg logger ~now:ts_sec @@ fun buf ->
+    State.send_msg logger ~pid ~now:ts_sec @@ fun buf ->
 
     Out.char buf '{';
 
