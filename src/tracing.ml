@@ -44,15 +44,14 @@ type 'a emit_fun =
 (* actually emit an event via the backend *)
 let[@inline never] emit_real_
   (module B:BACKEND)
-    ?ts_sec  ?cat ?(pid=pid) ?(tid=Thread.self () |> Thread.id)
+    ?ts_sec ?cat ?(pid=pid) ?(tid=Thread.self () |> Thread.id)
     ?stack ?args ?id ?extra ?dur name (ev:Event_type.t) : unit =
   let ts_sec = match ts_sec with Some x->x | None -> B.get_ts() in
   B.emit
     ~id ~pid ~cat ~tid ~ts_sec ~stack ~args ~name ~ph:ev ~dur ?extra ();
   ()
 
-let[@inline] emit
-     ?cat ?pid ?tid ?args name (ev:Event_type.t) : unit =
+let[@inline] emit ?cat ?pid ?tid ?args name (ev:Event_type.t) : unit =
   match !out_ with
   | None -> ()
   | Some b ->
@@ -70,8 +69,7 @@ let[@inline] instant_with_stack ?cat ?pid ?tid ?args name ~stack =
   | Some b ->
     emit_real_ b  ?cat ?pid ?tid ?args ~stack name I
 
-let[@inline] counter
-     ?cat ?pid ?tid ?(args=[]) name ~cs =
+let[@inline] counter ?cat ?pid ?tid ?(args=[]) name ~cs =
   match !out_ with
   | None -> ()
   | Some b ->
@@ -104,15 +102,13 @@ let exit_with_ ((module B:BACKEND) as b)
     b  ?cat ?pid ?tid ?args name ?stack
     ~ts_sec:start ~dur X
 
-let[@inline] exit
-     ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
+let[@inline] exit ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
   match sp, !out_ with
   | No_span, _ | _, None -> ()
   | Span_start {start}, Some b ->
     exit_with_ b  ?cat ?pid ?tid ?args name ?stack start
 
-let[@inline] with1
-     ?cat ?pid ?tid ?args name f x =
+let[@inline] with1 ?cat ?pid ?tid ?args name f x =
   match !out_ with
   | None -> f x
   | Some ((module B) as b) ->

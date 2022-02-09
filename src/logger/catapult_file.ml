@@ -32,29 +32,12 @@ end = struct
 
   and t = {
     mutable closed: bool;
+    mutable first: bool;
     oc: out_channel;
     lock: Mutex.t;
     mutable per_t: t_logger Int_map.t;
     mutable last_gc_stat: float; (* timestamp of last gc event *)
   }
-
-  let close (self:t) =
-    if not self.closed then (
-      self.closed <- true;
-      flush self.oc;
-      close_out self.oc;
-    )
-
-  let create ~(filename:string) : t =
-    let oc = open_out_bin filename in
-    let self = {
-      oc; closed=false; per_t=Int_map.empty;
-      lock=Mutex.create(); last_gc_stat=now_();
-    } in
-    Gc.finalise close self;
-    self
-
-  let n_retry_ = 2 (* if send blocks, retry this many times before giving up *)
 
   let[@inline] with_lock_ self f =
     Mutex.lock self.lock;
@@ -66,8 +49,32 @@ end = struct
       Mutex.unlock self.lock;
       raise e
 
+  let close (self:t) =
+    with_lock_ self @@ fun () ->
+    if not self.closed then (
+      self.closed <- true;
+      output_char self.oc ']';
+      flush self.oc;
+      close_out self.oc;
+    )
+
+  let create ~(filename:string) : t =
+    let oc = open_out_bin filename in
+    let self = {
+      oc; closed=false; first=true; per_t=Int_map.empty;
+      lock=Mutex.create(); last_gc_stat=now_();
+    } in
+    Gc.finalise close self;
+    self
+
   let emit_buf_ self logger : unit =
     with_lock_ self @@ fun () ->
+    if self.first then (
+      self.first <- false;
+      output_char self.oc '[';
+    ) else (
+      output_string self.oc ",\n";
+    );
     Buffer.output_buffer self.oc logger.t_buf
 
   let[@inline never] add_logger_ self ~t_id =
@@ -102,7 +109,7 @@ end = struct
     let self = pt.t_main in
     begin
       (* possibly emit gc event *)
-      if now -. self.last_gc_stat > 0.1 then (
+      if false && now -. self.last_gc_stat > 0.1 then (
         self.last_gc_stat <- now;
         emit_gc_();
       );
@@ -110,7 +117,6 @@ end = struct
       let buf = pt.t_buf in
       Buffer.clear buf;
       f buf;
-      (* emit the message, leave it to ZMQ to send it *)
       assert (pt.t_id = Thread.id (Thread.self()));
       emit_buf_ self pt
     end
@@ -191,11 +197,11 @@ module Backend() : P.BACKEND = struct
     field buf {|"tid"|} any_val (string_of_int tid);
     field_sep buf;
 
-    field buf {|"ts"|} any_val (Printf.sprintf "%.1f" (ts_sec *. 1e6));
+    field buf {|"ts"|} any_val (Printf.sprintf "%.1f" ts_sec);
     field_sep buf;
 
     opt_iter dur (fun dur ->
-        field buf {|"dur"|} any_val (Printf.sprintf "%.1f" (dur *. 1e6));
+        field buf {|"dur"|} any_val (Printf.sprintf "%.1f" dur);
         field_sep buf;
       );
 
