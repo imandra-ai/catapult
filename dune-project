@@ -10,7 +10,15 @@
 (package
   (name catapult)
   (synopsis "Tracing system based on the Catapult/TEF format")
-  (depopts mtime)
   (depends
+    (odoc :with-doc)
+    (ocaml (>= "4.08"))))
+
+(package
+  (name catapult-file)
+  (synopsis "File logger for catapult")
+  (depends
+    mtime
+    (yojson (and (>= 1.6) (< 2.0)))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))

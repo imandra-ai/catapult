@@ -1,6 +1,7 @@
 
 (library
   (synopsis "Profiling system based on the Catapult format")
-  (modules_without_implementation backend impl)
+  (modules_without_implementation backend impl arg)
+  (libraries threads)
   (public_name catapult)
   (name catapult))

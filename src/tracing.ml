@@ -2,78 +2,21 @@
 module type BACKEND = Backend.S
 type backend = (module BACKEND)
 
-type probe =
-  | No_probe
-  | Probe of {
-    name: string;
+open Event_type
+
+(* TODO: when we can, make this unboxed (only one ptr case!) *)
+type span_start =
+  | No_span
+  | Span_start of {
     start: float;
   }
 
-let null_probe = No_probe
+let null_span = No_span
 
-(* where to send events *)
+(* where to print events *)
 let out_ : backend option ref = ref None
 
-let[@inline] enabled () = !out_ != None
-
-let[@inline never] begin_with_ (module B:BACKEND) name : probe =
-  Probe {name; start=B.get_ts ()}
-
-let[@inline] begin_ name : probe =
-  match !out_ with
-  | None -> No_probe
-  | Some b -> begin_with_ b name
-
-let[@inline] instant name =
-  match !out_ with
-  | None -> ()
-  | Some (module B) ->
-    let now = B.get_ts() in
-    B.emit_instant_event ~name ~ts:now ()
-
-(* slow path *)
-let[@inline never] exit_full_ (module B : BACKEND) name start =
-  let now = B.get_ts() in
-  B.emit_duration_event ~name ~start ~end_:now ()
-
-let[@inline] exit_with_ b pb =
-  match pb with
-  | No_probe -> ()
-  | Probe {name; start} -> exit_full_ b name start
-
-let[@inline] exit pb =
-  match pb, !out_ with
-  | Probe {name;start}, Some b -> exit_full_ b name start
-  | _ -> ()
-
-let[@specialise] with_ name f =
-  match !out_ with
-  | None -> f()
-  | Some b ->
-    let pb = begin_with_ b name in
-    try
-      let x = f() in
-      exit_with_ b pb;
-      x
-    with e ->
-      exit_with_ b pb;
-      raise e
-
-let[@inline] with1 name f x =
-  match !out_ with
-  | None -> f x
-  | Some b ->
-    let pb = begin_with_ b name in
-    try
-      let res = f x in
-      exit_with_ b pb;
-      res
-    with e ->
-      exit_with_ b pb;
-      raise e
-
-let[@inline] with2 name f x y =
-  with_ name (fun () -> f x y)
+let[@inline] enabled() = !out_ != None
 
 module Control = struct
   let setup b =
@@ -87,3 +30,189 @@ module Control = struct
       out_ := None;
       B.teardown()
 end
+
+let pid = Unix.getpid()
+
+type 'a emit_fun =
+  ?cat:string list ->
+  ?pid:int ->
+  ?tid:int ->
+  ?args:(string*Arg.t) list ->
+  string ->
+  'a
+
+(* actually emit an event via the backend *)
+let[@inline never] emit_real_
+  (module B:BACKEND)
+    ?ts_sec  ?cat ?(pid=pid) ?(tid=Thread.self () |> Thread.id)
+    ?stack ?args ?id ?extra ?dur name (ev:Event_type.t) : unit =
+  let ts_sec = match ts_sec with Some x->x | None -> B.get_ts() in
+  B.emit
+    ~id ~pid ~cat ~tid ~ts_sec ~stack ~args ~name ~ph:ev ~dur ?extra ();
+  ()
+
+let[@inline] emit
+     ?cat ?pid ?tid ?args name (ev:Event_type.t) : unit =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ev
+
+let[@inline] instant ?cat ?pid ?tid ?args name =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name I
+
+let[@inline] instant_with_stack ?cat ?pid ?tid ?args name ~stack =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args ~stack name I
+
+let[@inline] counter
+     ?cat ?pid ?tid ?(args=[]) name ~cs =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    let args = List.rev_append args @@ List.map (fun (k,v) -> k, `Int v) cs in
+    emit_real_ b  ?cat ?pid ?tid name ~args C
+
+let[@inline] meta ?cat ?pid ?tid ?args name =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid name ?args M
+
+let meta_thread_name name =
+  meta "thread_name" ~args:["name", `String name]
+
+let meta_process_name name =
+  meta "process_name" ~args:["name", `String name]
+
+let[@inline] begin_ () : span_start =
+  match !out_ with
+  | None -> No_span
+  | Some (module B) ->
+    Span_start {start=B.get_ts()}
+
+let exit_with_ ((module B:BACKEND) as b)
+     ?cat ?pid ?tid ?args ?stack name start : unit =
+  let now = B.get_ts() in
+  let dur = now -. start in
+  emit_real_
+    b  ?cat ?pid ?tid ?args name ?stack
+    ~ts_sec:start ~dur X
+
+let[@inline] exit
+     ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
+  match sp, !out_ with
+  | No_span, _ | _, None -> ()
+  | Span_start {start}, Some b ->
+    exit_with_ b  ?cat ?pid ?tid ?args name ?stack start
+
+let[@inline] with1
+     ?cat ?pid ?tid ?args name f x =
+  match !out_ with
+  | None -> f x
+  | Some ((module B) as b) ->
+    let start = B.get_ts() in
+    try
+      let y = f x in
+      exit_with_ b  ?cat ?pid ?tid name ?args start;
+      y
+    with e ->
+      exit_with_ b  ?cat ?pid ?tid name ?args start;
+      raise e
+
+let[@inline] with_ ?cat ?pid ?tid ?args name f =
+  with1 ?cat ?pid ?tid ?args name f ()
+
+let[@inline] with2 ?cat ?pid ?tid ?args name f x y =
+  with1  ?cat ?pid ?tid ?args name (fun () -> f x y) ()
+
+let[@inline] with3 ?cat ?pid ?tid ?args name f x y z =
+  with1  ?cat ?pid ?tid ?args name (fun () -> f x y z) ()
+
+let[@inline] obj_new ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id N
+
+let[@inline] obj_delete ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id D
+
+let[@inline] obj_snap ?cat ?pid ?tid ?(args=[]) name ~snapshot ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid name
+      ~args:(("snapshot", `String snapshot)::args) ~id O
+
+let with1_gen_ ?cat ?pid ?tid ?args ?id name ev1 ev2 f x =
+  match !out_ with
+  | None -> f x
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ?id ev1;
+    try
+      let y = f x in
+      (* exit: do not pass args *)
+      emit_real_ b  ?cat ?pid ?tid name ?id ev2;
+      y
+    with e ->
+      emit_real_ b  ?cat ?pid ?tid name ?id ev2;
+      raise e
+
+let[@inline] obj_with1 ?cat ?pid ?tid ?args name ~id f x =
+  with1_gen_  ?cat ?pid ?tid ?args name ~id N D f x
+
+let[@inline] obj_with ?cat ?pid ?tid ?args name ~id f =
+  obj_with1  ?cat ?pid ?tid ?args name f () ~id
+
+let[@inline] a_begin
+     ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id A_b
+
+let[@inline] a_exit ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id A_e
+
+let[@inline] a_snap ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name A_n ~id
+
+let[@inline] a_with1 ?cat ?pid ?tid ?args name ~id f x =
+  with1_gen_  ?cat ?pid ?tid ?args name ~id A_b A_e f x
+
+let[@inline] a_with ?cat ?pid ?tid ?args name ~id f =
+  a_with1  ?cat ?pid ?tid ?args name f () ~id
+
+let[@inline] f_begin ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id F_s
+
+let[@inline] f_exit ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id F_f
+      ~extra:["bp", "e"]
+
+let[@inline] f_step ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b ->
+    emit_real_ b  ?cat ?pid ?tid ?args name ~id F_t
