@@ -4,14 +4,8 @@ type backend = (module BACKEND)
 
 open Event_type
 
-(* TODO: when we can, make this unboxed (only one ptr case!) *)
-type span_start =
-  | No_span
-  | Span_start of {
-    start: float;
-  }
-
-let null_span = No_span
+type span_start = float
+let null_span = neg_infinity
 
 (* where to print events *)
 let out_ : backend option ref = ref None
@@ -90,9 +84,8 @@ let meta_process_name name =
 
 let[@inline] begin_ () : span_start =
   match !out_ with
-  | None -> No_span
-  | Some (module B) ->
-    Span_start {start=B.get_ts()}
+  | None -> null_span
+  | Some (module B) -> B.get_ts()
 
 let exit_with_ ((module B:BACKEND) as b)
      ?cat ?pid ?tid ?args ?stack name start : unit =
@@ -103,10 +96,10 @@ let exit_with_ ((module B:BACKEND) as b)
     ~ts_sec:start ~dur X
 
 let[@inline] exit ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
-  match sp, !out_ with
-  | No_span, _ | _, None -> ()
-  | Span_start {start}, Some b ->
-    exit_with_ b  ?cat ?pid ?tid ?args name ?stack start
+  match !out_ with
+  | None -> ()
+  | _ when sp == null_span -> ()
+  | Some b -> exit_with_ b  ?cat ?pid ?tid ?args name ?stack sp
 
 let[@inline] with1 ?cat ?pid ?tid ?args name f x =
   match !out_ with

@@ -21,6 +21,7 @@ module type IMPL = Impl.S
 module Event_type = Event_type
 module Arg = Arg
 module Tracing = Tracing
+module Nil_impl = Nil_impl
 
 module Control = Tracing.Control
 
