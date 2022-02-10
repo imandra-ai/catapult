@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+message Void {}
+
+message Arg {
+  string key = 1;
+  string value = 2;
+}
+
+message Extra {
+  string key = 1;
+  string value = 2;
+}
+
+// The main events to log
+message event {
+  string name = 1;
+  oneof id_opt {
+    Void noid = 2;
+    string id = 3;
+  };
+  int32 tid = 4;
+  int32 pid = 5;
+
+  // timestamp in us
+  double ts_sec = 6;
+
+  repeated string cat = 7;
+
+  oneof dur_opt {
+    Void nodur = 8;
+    double dur = 9;
+  }
+
+  repeated string stack = 10;
+  repeated Arg args = 11;
+  repeated Extra extras = 12;
+}
+

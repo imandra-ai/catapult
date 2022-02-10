@@ -23,3 +23,22 @@
     (yojson (and (>= 1.6) (< 2.0)))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
+
+(package
+  (name catapult-client)
+  (synopsis "Network client for catapult, to be paired with catapult-daemon")
+  (depends
+    mtime
+    (catapult (= :version))
+    (odoc :with-doc)
+    (ocaml (>= "4.08"))))
+
+(package
+  (name catapult-daemon)
+  (synopsis "Daemon for reliable multi-process logging with catapult")
+  (depends
+    (odoc :with-doc)
+    (catapult (= :version))
+    logs
+    ocaml-protoc
+    camlzip))

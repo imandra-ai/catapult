@@ -121,7 +121,8 @@ end = struct
     let self = pt.t_main in
     begin
       let old_active = pt.t_active in
-      let must_emit_gc_ = not pt.t_active && now -. self.last_gc_stat > 0.1 in
+      (* gc stat after .2s *)
+      let must_emit_gc_ = not pt.t_active && now -. self.last_gc_stat > 2e5 in
       pt.t_active <- true;
 
       (* time to emit some GC counters *)
