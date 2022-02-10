@@ -3,12 +3,5 @@
   (name catapult_daemon)
   (public_name catapult-daemon)
   (libraries catapult catapult.wire yojson sqlite3_utils
-             camlzip directories logs ocaml-protoc)
+             camlzip directories logs)
   (package catapult-daemon))
-
-; compile protobuf file
-(rule
-  (targets ser_types.ml ser_types.mli ser_pp.ml ser_pp.mli
-           ser_pb.ml ser_pb.mli)
-  (deps ser.proto)
-  (action (run ocaml-protoc -ml_out . %{deps} -pp -binary)))

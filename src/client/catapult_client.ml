@@ -21,8 +21,8 @@ let[@inline never] invent_trace_id_ () : string =
   let pid = Unix.getpid() in
   let now = Unix.gettimeofday() in
   let tm = Unix.gmtime now in
-  Printf.sprintf "catapult-%d-%d-%d-%d-%d-%d-pid-%d"
-    tm.tm_year tm.tm_mon tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec pid
+  Printf.sprintf "catapult-%d-%d-%0d-%02d-%02d-%02d-pid-%d"
+    (1900+tm.tm_year) (tm.tm_mon+1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec pid
 
 let[@inline] get_trace_id () =
   if !trace_id="" then trace_id := invent_trace_id_();
