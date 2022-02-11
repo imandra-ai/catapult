@@ -28,8 +28,8 @@ jobs:
     - run: opam install bare_encoding
     - run: opam depext -yt catapult catapult-file catapult-sqlite catapult-client catapult-daemon
     - run: opam install -t . --deps-only
-    - run: opam exec -- dune build
+    - run: opam exec -- dune build --profile=release
     - run: opam install mtime
-    - run: opam exec -- dune build  # now with additional dep
-    - run: opam exec -- dune runtest
+    - run: opam exec -- dune build --profile=release # now with additional dep
+    - run: opam exec -- dune runtest --profile=release
       if: ${{ matrix.os == 'ubuntu-latest'}}

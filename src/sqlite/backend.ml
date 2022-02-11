@@ -3,6 +3,7 @@
 open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
+module Atomic = P.Atomic_shim_
 
 type event = P.Ser.Event.t
 
