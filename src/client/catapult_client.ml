@@ -61,7 +61,7 @@ let setup_ = lazy (
 let setup () = Lazy.force setup_
 let teardown = P.Tracing.Control.teardown
 
-let[@inline] with_setup f =
+let with_setup f =
   setup();
   try let x = f() in teardown(); x
   with e -> teardown(); raise e

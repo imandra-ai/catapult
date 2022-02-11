@@ -8,17 +8,6 @@ let[@inline] field_sep oc = Out.char oc ','
 
 let any_val oc (j:string) = Out.string oc j
 
-let char_val oc (c:char) =
-  Out.char oc '"';
-  Out.char oc c;
-  Out.char oc '"'
-
-let str_val oc (s:string) =
-  Out.char oc '"';
-  let s = if String.contains s '"' then String.escaped s else s in
-  Out.string oc s;
-  Out.char oc '"'
-
 (* emit [k:v] using printer [f] for the value *)
 let field oc k f v : unit =
   Out.string oc k;
@@ -38,10 +27,10 @@ let to_json buf (ev:P.Ser.Event.t) : string =
   Buffer.clear buf;
   Out.char buf '{';
 
-  field buf {|"name"|} str_val name;
+  field buf {|"name"|} Out.str_val name;
   field_sep buf;
 
-  field buf {|"ph"|} char_val (Char.chr ph);
+  field buf {|"ph"|} Out.char_val (Char.chr ph);
   field_sep buf;
 
   field buf {|"tid"|} Out.int64 tid;
@@ -56,7 +45,7 @@ let to_json buf (ev:P.Ser.Event.t) : string =
     );
 
   opt_iter id (fun i ->
-      field buf {|"id"|} str_val i;
+      field buf {|"id"|} Out.str_val i;
       field_sep buf;
     );
 
@@ -84,10 +73,10 @@ let to_json buf (ev:P.Ser.Event.t) : string =
       Out.char buf '{';
       Array.iteri (fun i {P.Ser.Arg.key; value} ->
           if i>0 then field_sep buf;
-          str_val buf key; field_col buf;
+          Out.str_val buf key; field_col buf;
           match value with
             | P.Ser.Arg_value.Arg_value_0 i -> Out.int64 buf i
-            | P.Ser.Arg_value.Arg_value_1 s -> str_val buf s)
+            | P.Ser.Arg_value.Arg_value_1 s -> Out.str_val buf s)
         args;
       Out.char buf '}';
       field_sep buf;
@@ -95,7 +84,7 @@ let to_json buf (ev:P.Ser.Event.t) : string =
 
   opt_iter extra (fun l ->
       Array.iter (fun {P.Ser.Extra.key; value} ->
-          str_val buf key; field_col buf; str_val buf value;
+          Out.str_val buf key; field_col buf; Out.str_val buf value;
           field_sep buf)
         l);
 

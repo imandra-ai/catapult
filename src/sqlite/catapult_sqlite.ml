@@ -10,6 +10,12 @@ module Ev_to_json = Ev_to_json
 let trace_id = ref (try Sys.getenv "TRACE_ID" with _ -> "")
 let set_trace_id s = trace_id := s
 
+let file = ref (try Sys.getenv "TRACE_DB" with _ -> "")
+let set_file f = file := f
+
+let sqlite_sync_ = ref None
+let set_sqlite_sync s = sqlite_sync_ := Some s
+
 (* try to make a non-stupid default id, based on PID + date.
    This is not perfect, use a UUID4 if possible. *)
 let[@inline never] invent_trace_id_ () : string =
@@ -53,7 +59,8 @@ let setup_ = lazy (
   if enabled() then (
     at_exit P.Control.teardown;
     let trace_id = get_trace_id() in
-    let writer = Writer.create ~trace_id ~dir:!dir () in
+    let file = if !file="" then None else Some !file in
+    let writer = Writer.create ?sync:!sqlite_sync_ ?file ~trace_id ~dir:!dir () in
     let module B = Backend.Make(struct
         let writer = writer
       end) in
@@ -65,7 +72,7 @@ let setup_ = lazy (
 let setup () = Lazy.force setup_
 let teardown = P.Tracing.Control.teardown
 
-let[@inline] with_setup f =
+let with_setup f =
   setup();
   try let x = f() in teardown(); x
   with e -> teardown(); raise e

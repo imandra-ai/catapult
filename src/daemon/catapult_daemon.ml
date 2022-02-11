@@ -5,7 +5,7 @@ module Atomic = P.Atomic_shim_
 
 module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
 
-type batch = P_db.Writer.batch
+type batch = P.Ser.Event.t list
 
 (* TODO: move most of this into sqlite library *)
 module Writer : sig

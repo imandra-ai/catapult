@@ -8,11 +8,12 @@ homepage: "https://github.com/AestheticIntegration/catapult"
 bug-reports: "https://github.com/AestheticIntegration/catapult.git/issues"
 depends: [
   "dune" {>= "2.0"}
-  "mtime"
   "base-threads"
+  "base-unix"
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}
 ]
+depopts: ["mtime"]
 build: [
   ["dune" "subst"] {pinned}
   [

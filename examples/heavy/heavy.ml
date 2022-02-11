@@ -26,29 +26,50 @@ let run n =
     if i mod 3 = 0 then Gc.major();
   done
 
+type mode = Net | File | Db
+let mode_of_str = function
+  | "net" -> Net
+  | "file" -> File
+  | "db" -> Db
+  | s -> failwith ("unknown mode: " ^ s)
+
+let sync_of_str = function
+  | "normal" -> `NORMAL
+  | "off" -> `OFF
+  | s -> failwith ("unknown sync level: " ^ s)
 
 let () =
   let n = ref 10 in
-  let net = ref false in
+  let mode = ref File in
   let file = ref "trace.json" in
   let addr = ref Catapult_client.default_endpoint in
+  let db = ref "trace.db" in
+  let sync = ref `NORMAL in
   let opts = [
     "-n", Arg.Set_int n, " number of iterations";
     "-o", Arg.Set_string file, " output file";
-    "--net", Arg.Set net, " use network client";
+    "--mode", Arg.Symbol (["net"; "file"; "db"], (fun s->mode := mode_of_str s)), " serialization mode";
+    "--db", Arg.String (fun s -> mode:= Db; db := s), " set trace database file";
+    "--db-sync", Arg.Symbol (["normal";"off"], fun s -> sync := sync_of_str s), " set level of sync for db";
     "--addr",
-    Arg.String (fun s -> addr := Catapult_client.Endpoint_address.of_string_exn s),
+    Arg.String (fun s -> mode:=Net; addr := Catapult_client.Endpoint_address.of_string_exn s),
     " network address";
   ] |> Arg.align in
   Arg.parse opts (fun _ -> ()) "heavy";
 
   let run () = run !n in
-  if !net then (
-    Printf.printf "use net client %s\n%!" (Catapult_client.Endpoint_address.to_string !addr);
-    Catapult_client.set_endpoint !addr;
-    Catapult_client.with_setup run
-  ) else (
-    Printf.printf "write to file %S\n%!" !file;
-    Catapult_file.set_file !file;
-    Catapult_file.with_setup run
-  )
+  begin match !mode with
+    | Net ->
+      Printf.printf "use net client %s\n%!" (Catapult_client.Endpoint_address.to_string !addr);
+      Catapult_client.set_endpoint !addr;
+      Catapult_client.with_setup run
+    | Db ->
+      Printf.printf "use sqlite backend %s\n%!" !db;
+      Catapult_sqlite.set_file !db;
+      Catapult_sqlite.set_sqlite_sync !sync;
+      Catapult_sqlite.with_setup run
+    | File ->
+      Printf.printf "write to file %S\n%!" !file;
+      Catapult_file.set_file !file;
+      Catapult_file.with_setup run
+  end

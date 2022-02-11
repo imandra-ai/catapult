@@ -1,6 +1,4 @@
 
-
-
 let program_start = Mtime_clock.now()
 
 (* main access to the clock *)

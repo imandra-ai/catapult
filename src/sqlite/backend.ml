@@ -1,5 +1,6 @@
 
 
+open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
 
@@ -12,7 +13,33 @@ end
 module Make(A : ARG) : P.BACKEND = struct
   let writer = A.writer
 
-  let teardown () = Writer.close writer
+  type local_buf = {
+    t_id: int;
+    buf: Buffer.t;
+    mutable evs: string list; (* batch *)
+    mutable n_evs: int;
+  }
+
+  (* send current batch to the writer *)
+  let flush_batch (self:local_buf) : unit =
+    if self.n_evs > 0 then (
+      let b = List.rev self.evs in
+      self.evs <- [];
+      self.n_evs <- 0;
+      Writer.write_string_l writer b;
+    )
+
+  (* per-thread buffer *)
+  let buf : local_buf Thread_local.t =
+    Thread_local.create
+      ~init:(fun ~t_id ->
+          {t_id;buf=Buffer.create 1024; n_evs=0; evs=[]})
+      ~close:flush_batch
+      ()
+
+  let teardown () =
+    Thread_local.clear buf;
+    Writer.close writer
 
   module Out = Json_buf_
 
@@ -33,18 +60,20 @@ module Make(A : ARG) : P.BACKEND = struct
 
   let emit
       ~id ~name ~ph ~tid ~pid ~cat ~ts_sec ~args ~stack ~dur ?extra () : unit =
-    (* delegate to {!State} the task of allocating a buffer, and producing
-       output. We just provide a callback that, given the buffer,
-       writes the JSON into it. *)
+
+    (* access local buffer to write and add to batch *)
+    let lbuf = Thread_local.get_or_create buf ~t_id:tid in
+
     let j =
-      Writer.with_buf writer @@ fun buf ->
+      let buf = lbuf.buf in
+      Buffer.clear buf;
 
       Out.char buf '{';
 
       field buf {|"name"|} Out.str_val name;
       field_sep buf;
 
-      field buf {|"ph"|} Out.char (P.Event_type.to_char ph);
+      field buf {|"ph"|} Out.char_val (P.Event_type.to_char ph);
       field_sep buf;
 
       field buf {|"tid"|} any_val (string_of_int tid);
@@ -103,6 +132,12 @@ module Make(A : ARG) : P.BACKEND = struct
       Out.char buf '}';
       Buffer.contents buf
     in
-    Writer.write_string writer j;
+
+    lbuf.evs <- j :: lbuf.evs;
+    lbuf.n_evs <- 1 + lbuf.n_evs;
+    if lbuf.n_evs > 100 then (
+      flush_batch lbuf;
+      Gc_stats.maybe_emit ~now:ts_sec ~pid ();
+    );
     ()
 end
