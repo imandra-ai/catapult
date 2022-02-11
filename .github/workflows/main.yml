@@ -29,5 +29,7 @@ jobs:
     - run: opam depext -yt catapult catapult-file catapult-sqlite catapult-client catapult-daemon
     - run: opam install -t . --deps-only
     - run: opam exec -- dune build
+    - run: opam install mtime
+    - run: opam exec -- dune build  # now with additional dep
     - run: opam exec -- dune runtest
       if: ${{ matrix.os == 'ubuntu-latest'}}
