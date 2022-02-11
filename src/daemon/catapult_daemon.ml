@@ -195,6 +195,8 @@ end = struct
       (* TODO: is this worth it?
       Db.exec db "PRAGMA journal_mode=WAL;" |> check_ret_;
          *)
+      Db.exec db "PRAGMA journal_mode=WAL;" |> check_ret_;
+      Db.exec db "PRAGMA synchronous=NORMAL;" |> check_ret_;
       Db.exec db schema |> check_ret_;
       Str_tbl.add self.dbs trace_id {db; refcount=Atomic.make 1};
       ()
