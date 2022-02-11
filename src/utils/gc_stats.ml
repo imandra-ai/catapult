@@ -6,7 +6,8 @@ module Atomic = P.Atomic_shim_
 let last_gc: float Atomic.t = Atomic.make (P.Clock.now_us())
 let emitting_gc = Atomic.make false
 
-let gc_interval_us = 1e5
+let gc_interval_us = ref 1e5
+let set_gc_interval_us s = gc_interval_us := s
 
 (* emit a GC counter event *)
 let[@inline never] emit_gc_ ~pid () =
@@ -22,7 +23,7 @@ let[@inline never] emit_gc_ ~pid () =
 
 let maybe_emit ~now ~pid () =
   let must_emit_gc_ =
-    now -. Atomic.get last_gc > gc_interval_us
+    now -. Atomic.get last_gc > !gc_interval_us
     &&
 
     (* NOTE: this is evaluated only if the interval condition is true,
@@ -31,6 +32,7 @@ let maybe_emit ~now ~pid () =
     not (Atomic.exchange emitting_gc true)
   in
   if must_emit_gc_ then (
+    Atomic.set last_gc now;
     emit_gc_ ~pid ();
     Atomic.set emitting_gc false;
 
