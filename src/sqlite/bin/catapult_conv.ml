@@ -22,6 +22,7 @@ let write_json ~files ~out () =
     let@ () = Fun.protect ~finally:(fun() -> while not (Db.db_close db) do () done) in
 
     let on_ev row =
+      incr n_read;
       let j = row.(0) in
 
       if !first then (
@@ -36,10 +37,7 @@ let write_json ~files ~out () =
     Db.exec_not_null_no_headers db "select ev from events; " ~cb:on_ev
     |> check_db_;
 
-
-
     if !debug_ then Printf.eprintf "read %d events\n%!" !n_read;
-
   in
 
   List.iter output_file files;
@@ -71,7 +69,8 @@ let () =
   let files = List.rev !files in
 
   if files<>[] then (
-    conv ~files ~out ()
+    conv ~files ~out ();
+    if !debug_ then Printf.eprintf "done in %.3fs\n%!" (Sys.time());
   ) else (
     failwith "please provide at least one file"
   )
