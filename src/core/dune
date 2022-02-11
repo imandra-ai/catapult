@@ -5,7 +5,7 @@
   (libraries threads
              (select clock.ml from
                      (mtime mtime.clock.os -> clock.mtime.ml)
-                     (_ -> clock.unix.ml)))
+                     (-> clock.unix.ml)))
   (public_name catapult)
   (name catapult))
 
