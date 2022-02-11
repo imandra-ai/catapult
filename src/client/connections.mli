@@ -1,12 +1,12 @@
-module W = Catapult_wire
+module P = Catapult
 
 type t
 
 val create :
-  addr:W.Endpoint_address.t ->
+  addr:P.Endpoint_address.t ->
   trace_id:string ->
   unit -> t
 
-val send_msg : t -> pid:int -> now:float -> W.event -> unit
+val send_msg : t -> pid:int -> now:float -> P.Ser.Event.t -> unit
 
 val close : t -> unit

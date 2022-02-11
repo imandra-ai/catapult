@@ -8,15 +8,8 @@ module Int_map = Map.Make(struct
     let compare=compare
   end)
 
-type json = Yojson.Basic.json
-
-let program_start = Mtime_clock.now()
 let file = ref "trace.json"
 let set_file f = file := f
-
-let[@inline] now_ () : float =
-  let now = Mtime_clock.now() in
-  Mtime.Span.to_us (Mtime.span program_start now)
 
 module State : sig
   type t_logger
@@ -73,7 +66,7 @@ end = struct
     let oc = open_out_bin filename in
     let self = {
       oc; closed=false; first=true; per_t=Atomic.make Int_map.empty;
-      lock=Mutex.create(); last_gc_stat=now_();
+      lock=Mutex.create(); last_gc_stat=P.Clock.now_us();
     } in
     Gc.finalise close self;
     self
@@ -142,8 +135,6 @@ end = struct
 end
 
 module Backend() : P.BACKEND = struct
-  let get_ts = now_
-
   let state = State.create ~filename:!file
   let teardown () = State.close state
 
@@ -151,34 +142,21 @@ module Backend() : P.BACKEND = struct
     let char = Buffer.add_char
     let string = Buffer.add_string
     let int out i = string out (string_of_int i)
+    let int64 out i = string out (Int64.to_string i)
     let float out f = string out (Printf.sprintf "%.1f" f)
+    let str_val oc (s:string) =
+      char oc '"';
+      let s = if String.contains s '"' then String.escaped s else s in
+      string oc s;
+      char oc '"'
+    let arg oc = function
+      | `Int i -> int oc i
+      | `String s -> str_val oc s
   end
-
-  (* already json-escaped *)
-  let string_of_event_type =
-    let open P.Event_type in
-    function
-    | B -> {|"B"|}
-    | E -> {|"E"|}
-    | X -> {|"X"|}
-    | I -> {|"I"|}
-    | C -> {|"C"|}
-    | P -> {|"P"|}
-    | A_b -> {|"b"|}
-    | A_n -> {|"n"|}
-    | A_e -> {|"e"|}
-    | F_s -> {|"s"|}
-    | F_t -> {|"t"|}
-    | F_f -> {|"f"|}
-    | N -> {|"N"|}
-    | O -> {|"O"|}
-    | D -> {|"D"|}
-    | M -> {|"M"|}
 
   let[@inline] field_col oc = Out.char oc ':'
   let[@inline] field_sep oc = Out.char oc ','
 
-  let json oc (j:json) = Out.string oc (Yojson.Basic.to_string j)
   let any_val oc (j:string) = Out.string oc j
 
   let str_val oc (s:string) =
@@ -210,7 +188,7 @@ module Backend() : P.BACKEND = struct
     field buf {|"name"|} str_val name;
     field_sep buf;
 
-    field buf {|"ph"|} any_val (string_of_event_type ph);
+    field buf {|"ph"|} Out.char (P.Event_type.to_char ph);
     field_sep buf;
 
     field buf {|"tid"|} any_val (string_of_int tid);
@@ -253,7 +231,7 @@ module Backend() : P.BACKEND = struct
         Out.char buf '{';
         List.iteri (fun i (k,v) ->
             if i>0 then field_sep buf;
-            str_val buf k; field_col buf; json buf (v:P.Arg.t:>json))
+            str_val buf k; field_col buf; Out.arg buf (v:P.Arg.t))
           args;
         Out.char buf '}';
         field_sep buf;

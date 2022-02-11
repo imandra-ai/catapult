@@ -10,9 +10,6 @@
 *)
 
 module type S = sig
-  val get_ts : unit -> float
-  (** Get the current timestamp in microseconds *)
-
   val emit :
     id:string option ->
     name:string ->

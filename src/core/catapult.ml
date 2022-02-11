@@ -22,9 +22,13 @@ module Event_type = Event_type
 module Arg = Arg
 module Tracing = Tracing
 module Nil_impl = Nil_impl
-
 module Control = Tracing.Control
+module Endpoint_address = Endpoint_address
+
+module Ser = Ser
 
 (**/**)
 module Atomic_shim_ = Atomic_shim_
+module Bare_encoding = Bare_encoding
+module Clock = Clock
 (**/**)

@@ -1,7 +1,6 @@
 
 module P = Catapult
 module Tracing = P.Tracing
-module W = Catapult_wire
 
 module Atomic = P.Atomic_shim_
 
@@ -13,7 +12,7 @@ module Int_map = Map.Make(struct
 
 type t = {
   per_t: logger Int_map.t Atomic.t;
-  addr: W.Endpoint_address.t;
+  addr: P.Endpoint_address.t;
   trace_id: string;
   mutable last_gc_stat: float;
 }
@@ -23,7 +22,7 @@ and logger = {
   main: t;
   t_id: int; (* thread id *)
   buf: Buffer.t;
-  out: W.Bare_encoding.Encode.t; (* outputs to buf *)
+  out: P.Bare_encoding.Encode.t; (* outputs to buf *)
   oc: out_channel;
   mutable closed: bool;
   mutable active: bool; (* emitting a message? *)
@@ -37,9 +36,9 @@ let[@inline] modify_map_ ~f (self:t) =
   )
   do () done
 
-let send_msg_logger_ (self:logger) (msg:W.Ser.Client_message.t) : unit =
+let send_msg_logger_ (self:logger) (msg:P.Ser.Client_message.t) : unit =
   Buffer.clear self.buf;
-  W.Ser.Client_message.encode self.out msg;
+  P.Ser.Client_message.encode self.out msg;
   let len = Buffer.length self.buf in
   Printf.fprintf self.oc "b%d\n" len; (* framing *)
   Buffer.output_buffer self.oc self.buf;
@@ -56,18 +55,18 @@ let close_logger (self:logger) =
 let close (self:t) =
   Int_map.iter (fun _ per_t -> close_logger per_t) (Atomic.get self.per_t)
 
-let create ~(addr: W.Endpoint_address.t) ~trace_id () : t =
+let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
   let self = {
     per_t=Atomic.make Int_map.empty;
     addr;
     trace_id;
-    last_gc_stat=Utils.now_();
+    last_gc_stat=P.Clock.now_us();
   } in
   Gc.finalise close self;
   self
 
-let connect_endpoint (addr: W.Endpoint_address.t) : out_channel =
-  let module E = W.Endpoint_address in
+let connect_endpoint (addr: P.Endpoint_address.t) : out_channel =
+  let module E = P.Endpoint_address in
   let dom = match addr with
     | E.Unix _ -> Unix.PF_UNIX
     | E.Tcp _ -> Unix.PF_INET in
@@ -85,7 +84,7 @@ let connect_endpoint (addr: W.Endpoint_address.t) : out_channel =
 (* add a new logger, connect to daemon, and return logger *)
 let[@inline never] add_logger_ self ~t_id : logger =
   let buf = Buffer.create 512 in
-  let out = W.Bare_encoding.Encode.of_buffer buf in
+  let out = P.Bare_encoding.Encode.of_buffer buf in
   let oc = connect_endpoint self.addr in
   let logger = {
     t_id; oc; buf; out; main=self; closed=false; active=false;
@@ -96,8 +95,8 @@ let[@inline never] add_logger_ self ~t_id : logger =
 
   (* send initial message *)
   send_msg_logger_ logger (
-    W.Ser.Client_message.Client_open_trace ({
-        W.Ser.Client_open_trace.trace_id=self.trace_id;
+    P.Ser.Client_message.Client_open_trace ({
+        P.Ser.Client_open_trace.trace_id=self.trace_id;
       })
   );
   logger
@@ -122,12 +121,14 @@ let emit_gc_ ~pid () =
     (Printf.sprintf "%d.minor_words" pid), (int_of_float st.Gc.minor_words);
   ]
 
-let send_msg (self:t) ~pid ~now (ev:W.event): unit =
+let gc_interval_us = 1e5
+
+let send_msg (self:t) ~pid ~now (ev:P.Ser.Event.t): unit =
   let logger = get_logger self ~t_id:(Int64.to_int ev.tid) in
   begin
     let old_active = logger.active in
     (* gc stat after .2s *)
-    let must_emit_gc_ = not old_active && now -. self.last_gc_stat > 2e5 in
+    let must_emit_gc_ = not old_active && now -. self.last_gc_stat > gc_interval_us in
     logger.active <- true; (* prevent recursive gc event *)
 
     (* time to emit some GC counters *)
@@ -136,7 +137,7 @@ let send_msg (self:t) ~pid ~now (ev:W.event): unit =
       emit_gc_ ~pid ();
     );
 
-    let msg = W.Ser.Client_message.Client_emit {W.Ser.Client_emit.ev} in
+    let msg = P.Ser.Client_message.Client_emit {P.Ser.Client_emit.ev} in
     send_msg_logger_ logger msg;
 
     logger.active <- old_active;

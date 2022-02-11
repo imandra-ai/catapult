@@ -2,10 +2,26 @@
 (library
   (synopsis "Profiling system based on the Catapult format")
   (modules_without_implementation backend impl arg)
-  (libraries threads)
+  (libraries threads mtime mtime.clock.os)
   (public_name catapult)
   (name catapult))
 
 (rule
   (targets atomic_shim_.ml)
   (action (with-stdout-to %{targets} (run gen/gen.exe))))
+
+; generate (de)ser code
+(rule
+  (targets ser.ml)
+  (deps ser.bare)
+  (mode promote)
+  (action (run bare-codegen --pp -o %{targets} %{deps})))
+
+; vendor runtime library for BARE
+(rule
+  (targets Bare_encoding.ml Bare_encoding.mli)
+  (mode promote)
+  (action
+    (progn
+      (copy %{lib:bare_encoding:Bare_encoding.ml} Bare_encoding.ml)
+      (copy %{lib:bare_encoding:Bare_encoding.mli} Bare_encoding.mli))))

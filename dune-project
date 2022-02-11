@@ -11,6 +11,8 @@
   (name catapult)
   (synopsis "Tracing system based on the Catapult/TEF format")
   (depends
+    mtime
+    base-threads
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
 
@@ -18,7 +20,6 @@
   (name catapult-file)
   (synopsis "File logger for catapult")
   (depends
-    mtime
     (catapult (= :version))
     (yojson (and (>= 1.6) (< 2.0)))
     (odoc :with-doc)
@@ -28,8 +29,8 @@
   (name catapult-sqlite)
   (synopsis "Sqlite-based backend for Catapult tracing")
   (depends
-    mtime
     sqlite3
+    directories
     (catapult (= :version))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
@@ -38,7 +39,6 @@
   (name catapult-client)
   (synopsis "Network client for catapult, to be paired with catapult-daemon")
   (depends
-    mtime
     (catapult (= :version))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
@@ -49,6 +49,5 @@
   (depends
     (odoc :with-doc)
     (catapult (= :version))
-    logs
-    ocaml-protoc
-    camlzip))
+    (catapult-sqlite (= :version))
+    logs))

@@ -18,8 +18,9 @@ let write_json ~files ~out () =
     if !debug_ then Printf.eprintf "reading file %S\n%!" file;
     let n_read = ref 0 in
 
-    let db = Db.db_open ~mode:`READONLY file in
+    let db = Db.db_open ~mode:`NO_CREATE file in
     let@ () = Fun.protect ~finally:(fun() -> while not (Db.db_close db) do () done) in
+    Db.exec db "PRAGMA journal=delete;" |> check_db_;
 
     let on_ev row =
       incr n_read;

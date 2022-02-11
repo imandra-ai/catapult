@@ -4,6 +4,8 @@ type backend = (module BACKEND)
 
 open Event_type
 
+let now_ = Clock.now_us
+
 type span_start = float
 let null_span = neg_infinity
 
@@ -40,7 +42,7 @@ let[@inline never] emit_real_
   (module B:BACKEND)
     ?ts_sec ?cat ?(pid=pid) ?(tid=Thread.self () |> Thread.id)
     ?stack ?args ?id ?extra ?dur name (ev:Event_type.t) : unit =
-  let ts_sec = match ts_sec with Some x->x | None -> B.get_ts() in
+  let ts_sec = match ts_sec with Some x->x | None -> now_ () in
   B.emit
     ~id ~pid ~cat ~tid ~ts_sec ~stack ~args ~name ~ph:ev ~dur ?extra ();
   ()
@@ -83,29 +85,28 @@ let meta_process_name name =
   meta "process_name" ~args:["name", `String name]
 
 let[@inline] begin_ () : span_start =
-  match !out_ with
-  | None -> null_span
-  | Some (module B) -> B.get_ts()
+  if !out_ == None then null_span
+  else now_()
 
-let exit_with_ ((module B:BACKEND) as b)
+let exit_with_ b
      ?cat ?pid ?tid ?args ?stack name start : unit =
-  let now = B.get_ts() in
+  let now = now_ () in
   let dur = now -. start in
   emit_real_
     b  ?cat ?pid ?tid ?args name ?stack
     ~ts_sec:start ~dur X
 
 let[@inline] exit ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
-  match !out_ with
+  if sp == null_span then ()
+  else match !out_ with
   | None -> ()
-  | _ when sp == null_span -> ()
   | Some b -> exit_with_ b  ?cat ?pid ?tid ?args name ?stack sp
 
 let[@inline] with1 ?cat ?pid ?tid ?args name f x =
   match !out_ with
   | None -> f x
-  | Some ((module B) as b) ->
-    let start = B.get_ts() in
+  | Some b ->
+    let start = now_() in
     try
       let y = f x in
       exit_with_ b  ?cat ?pid ?tid name ?args start;

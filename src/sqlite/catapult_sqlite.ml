@@ -3,7 +3,9 @@
 module P = Catapult
 module Tracing = P.Tracing
 
-module Endpoint_address = P.Endpoint_address
+module Backend = Backend
+module Writer = Writer
+module Ev_to_json = Ev_to_json
 
 let trace_id = ref (try Sys.getenv "TRACE_ID" with _ -> "")
 let set_trace_id s = trace_id := s
@@ -21,14 +23,7 @@ let[@inline] get_trace_id () =
   if !trace_id="" then trace_id := invent_trace_id_();
   !trace_id
 
-let default_endpoint = P.Endpoint_address.default
-let endpoint = ref (try P.Endpoint_address.of_string_exn (Sys.getenv "TRACE_ENDPOINT") with _ -> default_endpoint)
-let set_endpoint e = endpoint := e
-let get_endpoint () = !endpoint
-let set_tcp_endpoint h p = set_endpoint (P.Endpoint_address.Tcp (h,p))
-let set_ipc_endpoint file = set_endpoint (P.Endpoint_address.Unix file)
-
-let tef_in_env() = List.mem (Sys.getenv_opt "TRACE") [Some"1";Some"true"]
+let trace_in_env() = List.mem (Sys.getenv_opt "TRACE") [Some"1";Some"true"]
 
 let mk_lazy_enable getenv =
   let r = ref false in
@@ -43,15 +38,24 @@ let mk_lazy_enable getenv =
   in
   enable, enabled
 
-let enable, enabled = mk_lazy_enable tef_in_env
+let enable, enabled = mk_lazy_enable trace_in_env
+
+module Dir = Directories.Project_dirs(struct
+    let qualifier = "ai"
+    let organization = "imandra"
+    let application = "catapult"
+  end)
+
+let dir = ref @@ match Dir.data_dir with None -> "." | Some d -> d
+let set_dir d = dir := d
 
 let setup_ = lazy (
   if enabled() then (
     at_exit P.Control.teardown;
     let trace_id = get_trace_id() in
-    let conn = Connections.create ~addr:!endpoint ~trace_id () in
+    let writer = Writer.create ~trace_id ~dir:!dir () in
     let module B = Backend.Make(struct
-        let conn = conn
+        let writer = writer
       end) in
     let backend = (module B : P.BACKEND) in
     P.Control.setup (Some backend);

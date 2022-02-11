@@ -1,7 +1,6 @@
 
 (library
-  (synopsis "Catapult backend that logs to a file directly")
+  (synopsis "Catapult backend that logs to a file")
   (name catapult_file)
   (public_name catapult-file)
-  (libraries catapult mtime mtime.clock.os yojson
-             threads.posix))
+  (libraries catapult threads.posix))
