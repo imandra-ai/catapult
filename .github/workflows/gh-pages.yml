@@ -25,8 +25,9 @@ jobs:
       - name: Pin
         run: opam pin -n .
 
+      - run: opam install bare_encoding
       - name: Depext
-        run: opam depext -yt catapult catapult-file
+        run: opam depext -yt catapult catapult-file catapult-sqlite catapult-client catapult-daemon
 
       - name: Deps
         run: opam install -d . --deps-only
