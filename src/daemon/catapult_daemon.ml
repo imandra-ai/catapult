@@ -127,6 +127,7 @@ end = struct
     Buffer.contents buf
 end
 
+(* TODO: move most of this into sqlite library *)
 module Writer : sig
   type t
   val create :
@@ -179,7 +180,7 @@ end = struct
       raise e
 
   let schema = {|
-    create table if not exists events (ev TEXT);
+    create table if not exists events (ev TEXT NOT NULL);
   |}
 
   (* open DB or increment refcount *)

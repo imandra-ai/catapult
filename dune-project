@@ -25,6 +25,16 @@
     (ocaml (>= "4.08"))))
 
 (package
+  (name catapult-sqlite)
+  (synopsis "Sqlite-based backend for Catapult tracing")
+  (depends
+    mtime
+    sqlite3
+    (catapult (= :version))
+    (odoc :with-doc)
+    (ocaml (>= "4.08"))))
+
+(package
   (name catapult-client)
   (synopsis "Network client for catapult, to be paired with catapult-daemon")
   (depends

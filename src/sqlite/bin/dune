@@ -1,0 +1,6 @@
+
+(executable
+  (name catapult_conv)
+  (public_name catapult-conv)
+  (package catapult-sqlite)
+  (libraries catapult unix sqlite3))
