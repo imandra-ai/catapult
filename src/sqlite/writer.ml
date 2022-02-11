@@ -1,6 +1,7 @@
 
 module P = Catapult
 module Db = Sqlite3
+module Atomic = P.Atomic_shim_
 open Catapult_utils
 
 let (let@) x f = x f

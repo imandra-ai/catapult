@@ -49,7 +49,7 @@ let conv ~files ~out () =
   if Filename.extension out = ".gz" then (
     let out = Filename.chop_extension out in
     write_json ~files ~out ();
-    let cmd = Filename.quote_command "gzip" ["-f"; out] in
+    let cmd = Printf.sprintf "gzip -f %s" (Filename.quote out) in
     let retcode = Sys.command cmd in
     if retcode<>0 then exit retcode
   ) else (
