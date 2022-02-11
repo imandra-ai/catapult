@@ -9,9 +9,8 @@ module Int_map = Map.Make(struct
   end)
 
 type 'a value = {
-  t_id: int; (* thread id *)
   value: 'a;
-}
+} [@@unboxed]
 
 (** A thread-local map. *)
 type 'a t = {
@@ -28,14 +27,7 @@ let[@inline] modify_map_ ~f (self:_ t) =
   )
   do () done
 
-let get_or_create self ~t_id : 'a =
-  let m = Atomic.get self.map in
-  match Int_map.find_opt t_id m with
-  | Some v -> v.value
-  | None ->
-    let v = {t_id; value=self.init ~t_id} in
-    modify_map_ self ~f:(fun m -> Int_map.add t_id v m);
-    v.value
+let size self = Int_map.cardinal (Atomic.get self.map)
 
 let remove (self:_ t) ~t_id =
   let m = Atomic.get self.map in
@@ -44,6 +36,24 @@ let remove (self:_ t) ~t_id =
   | Some value ->
     modify_map_ self ~f:(fun m -> Int_map.remove t_id m);
     self.close value.value
+
+let get_or_create self : 'a =
+  let t = Thread.self () in
+  let t_id = Thread.id t in
+
+  let m = Atomic.get self.map in
+  match Int_map.find_opt t_id m with
+  | Some v -> v.value
+  | None ->
+    let v = {value=self.init ~t_id} in
+    modify_map_ self ~f:(fun m -> Int_map.add t_id v m);
+
+    Gc.finalise (fun _ -> remove self ~t_id) t;
+    v.value
+
+let iter ~f self =
+  let m = Atomic.get self.map in
+  Int_map.iter (fun _ v -> f v.value) m
 
 let clear self =
   let m = Atomic.exchange self.map Int_map.empty in

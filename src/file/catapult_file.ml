@@ -1,4 +1,5 @@
 
+open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
 module Atomic = P.Atomic_shim_
@@ -14,6 +15,7 @@ let set_file f = file := f
 module State : sig
   type t_logger
   type t
+  val flush : t -> unit
   val create : filename:string -> t
   val get_logger : t -> t_id:int -> t_logger
   val send_msg : t_logger -> pid:int -> now:float -> (Buffer.t -> unit) -> unit
@@ -23,7 +25,6 @@ end = struct
     t_main: t;
     t_id: int; (* thread id *)
     t_buf: Buffer.t; (* used to print a json object *)
-    mutable t_active: bool; (* are we emitting an event already? *)
   }
 
   and t = {
@@ -32,7 +33,6 @@ end = struct
     oc: out_channel;
     lock: Mutex.t;
     per_t: t_logger Int_map.t Atomic.t;
-    mutable last_gc_stat: float; (* timestamp of last gc event *)
   }
 
   let[@inline] with_lock_ self f =
@@ -54,6 +54,10 @@ end = struct
       close_out self.oc;
     )
 
+  let flush self =
+    with_lock_ self @@ fun () ->
+    flush self.oc
+
   let[@inline] modify_map_ ~f (self:t) =
     while not (
       let cur = Atomic.get self.per_t in
@@ -66,7 +70,7 @@ end = struct
     let oc = open_out_bin filename in
     let self = {
       oc; closed=false; first=true; per_t=Atomic.make Int_map.empty;
-      lock=Mutex.create(); last_gc_stat=P.Clock.now_us();
+      lock=Mutex.create();
     } in
     Gc.finalise close self;
     self
@@ -83,7 +87,7 @@ end = struct
 
   let[@inline never] add_logger_ self ~t_id =
     let pt = {
-      t_id; t_buf=Buffer.create 128; t_main=self; t_active=false;
+      t_id; t_buf=Buffer.create 128; t_main=self;
     } in
     modify_map_ self ~f:(fun m -> Int_map.add t_id pt m);
     Gc.finalise
@@ -113,30 +117,25 @@ end = struct
   let send_msg (pt:t_logger) ~pid ~now (f:Buffer.t -> unit) : unit =
     let self = pt.t_main in
     begin
-      let old_active = pt.t_active in
-      (* gc stat after .2s *)
-      let must_emit_gc_ = not pt.t_active && now -. self.last_gc_stat > 2e5 in
-      pt.t_active <- true;
-
-      (* time to emit some GC counters *)
-      if must_emit_gc_ then (
-        self.last_gc_stat <- now;
-        emit_gc_ ~pid ();
-      );
-
       let buf = pt.t_buf in
       Buffer.clear buf;
       f buf;
       assert (pt.t_id = Thread.id (Thread.self()));
       emit_buf_ self pt;
 
-      pt.t_active <- old_active;
+      Gc_stats.maybe_emit ~now ~pid ();
     end
 end
 
 module Backend() : P.BACKEND = struct
   let state = State.create ~filename:!file
   let teardown () = State.close state
+
+  let tick() =
+    let now = P.Clock.now_us() in
+    let pid = Unix.getpid() in
+    Gc_stats.maybe_emit ~now ~pid ();
+    State.flush state
 
   module Out = struct
     let char = Buffer.add_char

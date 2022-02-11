@@ -46,4 +46,9 @@ module Make(A : ARG) : P.BACKEND = struct
       }
     in
     Connections.send_msg conn ~pid ~now:ts_sec ev
+
+  let tick() =
+    let now = P.Clock.now_us() in
+    let pid = Unix.getpid() in
+    Gc_stats.maybe_emit ~now ~pid ()
 end

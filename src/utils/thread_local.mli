@@ -17,8 +17,12 @@ val create :
   close:('a -> unit) ->
   unit -> 'a t
 
-val get_or_create : 'a t -> t_id:int -> 'a
+val size : _ t -> int
+
+val get_or_create : 'a t -> 'a
 
 val remove : _ t -> t_id:int -> unit
+
+val iter : f:('a -> unit) -> 'a t -> unit
 
 val clear : _ t -> unit

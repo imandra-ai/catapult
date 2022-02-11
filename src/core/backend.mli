@@ -25,6 +25,10 @@ module type S = sig
     unit -> unit
   (** Emit an event. *)
 
+  val tick : unit -> unit
+  (** Function that can be called regularly to ensure background work
+      is done. Potentially useful for long-running processes. *)
+
   val teardown : unit -> unit
   (** Tear down backend once the program is shutting down. *)
 end

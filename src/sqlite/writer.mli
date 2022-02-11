@@ -3,7 +3,7 @@ module P = Catapult
 type t
 
 val create :
-  ?sync:[`OFF | `NORMAL] ->
+  ?sync:[`OFF | `NORMAL | `FULL] ->
   ?append:bool ->
   ?file:string ->
   trace_id:string ->
@@ -18,6 +18,9 @@ val create :
     safe; [`OFF] is much faster but might corrupt DB if the machin crashes.
     See https://sqlite.org/pragma.html#pragma_synchronous
 *)
+
+val cycle_stmt : t -> unit
+(** Close and recreate internal state. *)
 
 val close : t -> unit
 (** Close writer. *)

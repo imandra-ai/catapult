@@ -92,10 +92,7 @@ let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
 
 (* send a message. *)
 let send_msg (self:t) ~pid ~now (ev:P.Ser.Event.t): unit =
-  let logger =
-    let t_id = Int64.to_int ev.tid in
-    Thread_local.get_or_create self.per_t ~t_id
-  in
+  let logger = Thread_local.get_or_create self.per_t in
   begin
     let msg = P.Ser.Client_message.Client_emit {P.Ser.Client_emit.ev} in
     Logger.send_msg logger msg;

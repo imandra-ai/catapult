@@ -1,9 +1,11 @@
 
 module P = Catapult
+module Tr = P.Tracing
 module P_db = Catapult_sqlite
 module Atomic = P.Atomic_shim_
 
 module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
+open Tr.Syntax
 
 type batch = P.Ser.Event.t list
 
@@ -13,6 +15,8 @@ module Writer : sig
   val create :
     dir:string ->
     unit -> t
+
+  val size : t -> int
 
   (** Write a batch to the SQLITE database for this trace *)
   val send_batch : t -> trace_id:string -> batch -> unit
@@ -28,6 +32,7 @@ end = struct
   type db_conn = {
     refcount: int Atomic.t;
     writer: P_db.Writer.t;
+    mutable n_batches: int;
   }
 
   type action =
@@ -47,6 +52,8 @@ end = struct
     stop: bool Atomic.t;
   }
 
+  let size self = Str_tbl.length self.dbs
+
   let[@inline] with_lock self f =
     Mutex.lock self.lock;
     try
@@ -64,13 +71,16 @@ end = struct
     | Some db -> Atomic.incr db.refcount
     | None ->
       let writer = P_db.Writer.create ~dir:self.dir ~trace_id () in
-      Str_tbl.add self.dbs trace_id {writer; refcount=Atomic.make 1};
+      Str_tbl.add self.dbs trace_id
+        {writer; refcount=Atomic.make 1; n_batches=0;};
       ()
 
   (* decrement refcount and possibly close trace *)
   let decr_trace_ self ~trace_id : unit =
     match Str_tbl.find_opt self.dbs trace_id with
-    | None -> Log.err (fun k->k "trace %S not opened" trace_id); assert false
+    | None ->
+      Tr.instant "err" ~args:["trace-not-opened", `String trace_id];
+      Log.err (fun k->k "trace %S not opened" trace_id); assert false
     | Some db ->
       let n = Atomic.fetch_and_add db.refcount (-1) in
       if n=1 then (
@@ -81,20 +91,23 @@ end = struct
       )
 
   (* obtain an already opened trace writer *)
-  let get_writer_ self ~trace_id : P_db.Writer.t =
+  let get_writer_ self ~trace_id : db_conn =
     match Str_tbl.find_opt self.dbs trace_id with
-    | Some db -> db.writer
+    | Some db -> db
     | None ->
       Logs.err (fun k->k "DB for trace %S not opened" trace_id);
       assert false
 
   let write_loop_ self : unit =
+    let@ () = Tr.with_ "writer.loop" in
     let delay = ref 0.001 in
     while not (Atomic.get self.stop) do
       match with_lock self (fun () -> Queue.take_opt self.q) with
       | None ->
         (* just spin *)
-        Thread.delay !delay;
+        begin
+          Thread.delay !delay;
+        end;
         delay := min 0.1 (!delay *. 0.2 );
 
       | Some (Incr trace_id) ->
@@ -114,8 +127,17 @@ end = struct
           |> List.map (P_db.Ev_to_json.to_json self.buf)
         in
 
-        let writer = get_writer_ self ~trace_id in
-        P_db.Writer.write_string_l writer encoded_evs;
+        let db = get_writer_ self ~trace_id in
+        begin
+          P_db.Writer.write_string_l db.writer encoded_evs;
+        end;
+
+        db.n_batches <- 1 + db.n_batches;
+        if db.n_batches > 20 then (
+          db.n_batches <- 0;
+          (* give a chance to the DB to write checkpoints, etc. *)
+          P_db.Writer.cycle_stmt db.writer;
+        )
     done
 
   let create ~dir () : t =
@@ -136,10 +158,12 @@ end = struct
     Queue.push (Batch {trace_id; b}) self.q
 
   let incr_trace self ~trace_id =
+    Tr.instant "incr-trace" ~args:["id", `String trace_id];
     with_lock self @@ fun () ->
     Queue.push (Incr trace_id) self.q
 
   let decr_trace self ~trace_id =
+    Tr.instant "decr-trace" ~args:["id", `String trace_id];
     with_lock self @@ fun () ->
     Queue.push (Decr trace_id) self.q
 end
@@ -152,6 +176,7 @@ module Server : sig
     writer:Writer.t ->
     unit -> t
 
+  val n_clients : t -> int
   val stop : t -> unit
 
   val run : t -> unit
@@ -163,6 +188,7 @@ end = struct
     addr: Addr.t;
     sock: Unix.file_descr;
     stop: bool Atomic.t;
+    n_clients: int Atomic.t;
     (* TODO: sock *)
   }
 
@@ -194,6 +220,10 @@ end = struct
       Addr.to_string (Addr.Unix s)
 
   let serve_client_ (self:t) (conn:Unix.file_descr) : unit =
+    Tr.meta_thread_name (Printf.sprintf "catapult-client-thread-%d" (Thread.id (Thread.self())));
+    Tr.begin' "serve.client";
+    Atomic.incr self.n_clients;
+
     let ic = Unix.in_channel_of_descr conn in
     let oc = Unix.out_channel_of_descr conn in
 
@@ -210,7 +240,7 @@ end = struct
         batch_len := 0;
         batch := [];
 
-        Writer.send_batch self.writer ~trace_id:!trace_id b
+        Writer.send_batch self.writer ~trace_id:!trace_id b;
       );
     in
 
@@ -224,8 +254,11 @@ end = struct
       begin match msg with
         | P.Ser.Client_message.Client_open_trace {trace_id=id} ->
           Log.info (fun k->k "client opened trace %S" id);
+          Tr.instant "open.trace" ~args:["id", `String id];
+
           flush_batch();
           if !trace_id <> "" then Writer.decr_trace self.writer !trace_id;
+
           (* start new batch *)
           Writer.incr_trace self.writer id;
           trace_id := id;
@@ -245,43 +278,53 @@ end = struct
       ()
     in
 
-    let process_q header =
-        if String.length header > 0 && header.[0] = 'b' then (
-          match int_of_string_opt (String.sub header 1 (String.length header-1)) with
-          | None ->
-            Log.err(fun k->k "invalid header: %S" header);
-            continue := false
-          | Some n ->
-            Log.debug (fun k->k "read client message (size %d)" n);
-            if Bytes.length !buf < n then (
-              buf := Bytes.create (max (Bytes.length !buf*2) n);
-            );
-            really_input ic !buf 0 n;
-            let dec = P.Bare_encoding.Decode.of_bytes ~len:n !buf in
-            let msg = P.Ser.Client_message.decode dec in
-            handle_client_msg msg
-        ) else (
-          Log.err(fun k->k "unknown header: %S@.disconnecting client" header);
+    let process_message_header_ header =
+      if String.length header > 0 && header.[0] = 'b' then (
+        match int_of_string_opt (String.sub header 1 (String.length header-1)) with
+        | None ->
+          Log.err(fun k->k "invalid header: %S" header);
+          Tr.instant "err" ~args:["invalid-header", `String header];
           continue := false
-        )
+        | Some n ->
+          Log.debug (fun k->k "read client message (size %d)" n);
+          if Bytes.length !buf < n then (
+            buf := Bytes.create (max (Bytes.length !buf*2) n);
+          );
+          really_input ic !buf 0 n;
+          let dec = P.Bare_encoding.Decode.of_bytes ~len:n !buf in
+          let msg = P.Ser.Client_message.decode dec in
+          handle_client_msg msg
+      ) else (
+        Log.err(fun k->k "unknown header: %S@.disconnecting client" header);
+        Tr.instant "err" ~args:["unknown-header", `String header];
+        continue := false
+      )
     in
 
-
     let exit() =
+      Atomic.decr self.n_clients;
       flush_batch();
       if !trace_id<>"" then Writer.decr_trace self.writer !trace_id;
+      close_in_noerr ic;
+      close_out_noerr oc;
     in
 
     try
       while !continue do
         let header = input_line ic in
-        process_q header
+        process_message_header_ header
       done;
+      Tr.exit' "serve-client" ~args:["reason", `String "conn closed"];
       exit();
-    with End_of_file ->
+    with
+    | End_of_file ->
+      Tr.exit' "serve-client" ~args:["reason", `String "end of file"];
       exit();
-      close_in_noerr ic;
-      close_out_noerr oc;
+      ()
+    | e ->
+      Log.err (fun k->k "client loop: %s" (Printexc.to_string e));
+      Tr.exit' "serve-client" ~args:["reason", `String (Printexc.to_string e)];
+      exit();
       ()
 
   let create ?(addr=Addr.default) ~writer () : t =
@@ -290,18 +333,56 @@ end = struct
       writer;
       addr; sock;
       stop=Atomic.make false;
+      n_clients=Atomic.make 0;
     } in
     self
 
+  let n_clients self = Atomic.get self.n_clients
   let stop self = Atomic.set self.stop true
 
   let run (self:t) : unit =
+    let@ () = Tr.with_ "listen.loop" in
+    Sys.catch_break true;
+
     while not (Atomic.get self.stop) do
-      let conn, client_addr = Unix.accept self.sock in
-      Logs.info (fun k->k "new connection from %s" (string_of_sockaddr client_addr));
-      ignore (Thread.create (serve_client_ self) conn : Thread.t);
-      ()
+      try
+        let@ () = Tr.with_ "accept" in
+        let conn, client_addr = Unix.accept self.sock in
+
+        Logs.info (fun k->k "new connection from %s" (string_of_sockaddr client_addr));
+        Tr.instant "new-client" ~args:["addr", `String (string_of_sockaddr client_addr)];
+
+        ignore (Thread.create (serve_client_ self) conn : Thread.t);
+      with Sys.Break ->
+        Tr.instant "sys.break";
+        Atomic.set self.stop true
     done
+end
+
+(** Background thread *)
+module Ticker_thread = struct
+  open Catapult_utils
+
+  let start ~server ~writer () =
+    let run() =
+      Tr.meta_thread_name "ticker";
+      let pid = Unix.getpid() in
+      while true do
+        let@ () = Tr.with_ "tick" in
+        Thread.delay 0.1;
+        let now = P.Clock.now_us() in
+
+        Tr.tick();
+        Tr.counter "daemon" [
+          "writer", Writer.size writer;
+          "clients", Server.n_clients server;
+        ];
+        Gc_stats.maybe_emit ~now ~pid ()
+      done
+    in
+
+    ignore (Thread.create run () : Thread.t)
+
 end
 
 module Dir = Directories.Project_dirs(struct
@@ -320,6 +401,13 @@ let setup_logs ~debug () =
   ()
 
 let () =
+  (* tracing for the daemon itself *)
+  Catapult_sqlite.set_sqlite_sync `FULL;
+  let@ () = Catapult_sqlite.with_setup in
+
+  Tr.meta_process_name "catapult-daemon";
+  Tr.meta_thread_name "main";
+
   let debug = ref false in
   let dir = ref @@ match Dir.data_dir with None -> "." | Some d -> d in
   let addr = ref P.Endpoint_address.default in
@@ -337,6 +425,7 @@ let () =
 
   let writer = Writer.create ~dir:!dir () in
   let server = Server.create ~writer ~addr:!addr () in
+  Ticker_thread.start ~writer ~server ();
   Server.run server;
   ()
 

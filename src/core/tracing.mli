@@ -44,6 +44,9 @@ val with1 : (('a->'b) -> 'a->'b) emit_fun
 val with2 : (('a->'b->'c) -> 'a->'b->'c) emit_fun
 val with3 : (('a->'b->'c->'d) -> 'a->'b->'c->'d) emit_fun
 
+val begin' : unit emit_fun
+val exit': unit emit_fun
+
 val obj_new : (id:string -> unit) emit_fun
 val obj_snap : (snapshot:string -> id:string -> unit) emit_fun
 val obj_delete : (id:string -> unit) emit_fun
@@ -66,6 +69,10 @@ val counter : (cs:(string*int) list -> unit) emit_fun
 
 val meta_thread_name : string -> unit
 val meta_process_name : string -> unit
+
+val tick : unit -> unit
+(** Depending on the tracing backend, this needs to be
+    called regularly to ensure background work is done. *)
 
 module Syntax : sig
   val (let@) : ('a -> 'b) -> 'a -> 'b

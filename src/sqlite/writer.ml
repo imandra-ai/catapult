@@ -3,8 +3,6 @@ module P = Catapult
 module Db = Sqlite3
 open Catapult_utils
 
-type batch = P.Ser.Event.t list
-
 let (let@) x f = x f
 let check_ret_ e = match e with
   | Db.Rc.DONE | Db.Rc.OK -> ()
@@ -12,7 +10,7 @@ let check_ret_ e = match e with
     failwith ("db error: " ^ Db.Rc.to_string e)
 
 type t = {
-  stmt_insert: Db.stmt; (* guard: db_lock *)
+  mutable stmt_insert: Db.stmt; (* guard: db_lock *)
   db: Db.db; (* guard: db_lock *)
   db_lock: Mutex.t;
   closed: bool Atomic.t;
@@ -61,6 +59,7 @@ let create
   Db.exec db "PRAGMA journal_mode=WAL;" |> check_ret_;
   begin match sync with
     | `OFF -> Db.exec db "PRAGMA synchronous=OFF;" |> check_ret_;
+    | `FULL -> Db.exec db "PRAGMA synchronous=FULL;" |> check_ret_;
     | `NORMAL -> Db.exec db "PRAGMA synchronous=NORMAL;" |> check_ret_;
   end;
   Db.exec db schema |> check_ret_;
@@ -79,6 +78,11 @@ let create
   } in
   Gc.finalise close self;
   self
+
+let cycle_stmt (self:t) =
+  Db.finalize self.stmt_insert |> check_ret_;
+  let stmt_insert = Db.prepare self.db "insert into events values (?);" in
+  self.stmt_insert <- stmt_insert
 
 let[@inline] write_str_ self s =
   Db.bind_blob self.stmt_insert 1 s |> check_ret_;

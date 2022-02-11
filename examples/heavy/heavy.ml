@@ -36,6 +36,7 @@ let mode_of_str = function
 let sync_of_str = function
   | "normal" -> `NORMAL
   | "off" -> `OFF
+  | "full" -> `FULL
   | s -> failwith ("unknown sync level: " ^ s)
 
 let () =
@@ -50,7 +51,7 @@ let () =
     "-o", Arg.Set_string file, " output file";
     "--mode", Arg.Symbol (["net"; "file"; "db"], (fun s->mode := mode_of_str s)), " serialization mode";
     "--db", Arg.String (fun s -> mode:= Db; db := s), " set trace database file";
-    "--db-sync", Arg.Symbol (["normal";"off"], fun s -> sync := sync_of_str s), " set level of sync for db";
+    "--db-sync", Arg.Symbol (["normal";"off";"full"], fun s -> sync := sync_of_str s), " set level of sync for db";
     "--addr",
     Arg.String (fun s -> mode:=Net; addr := Catapult_client.Endpoint_address.of_string_exn s),
     " network address";

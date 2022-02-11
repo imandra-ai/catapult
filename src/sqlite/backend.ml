@@ -20,6 +20,10 @@ module Make(A : ARG) : P.BACKEND = struct
     mutable n_evs: int;
   }
 
+  let batch_size = 100
+  let max_batch_interval_us = 2e5 (* max time between 2 flushes *)
+  let last_batch_flush = Atomic.make (P.Clock.now_us())
+
   (* send current batch to the writer *)
   let flush_batch (self:local_buf) : unit =
     if self.n_evs > 0 then (
@@ -27,6 +31,15 @@ module Make(A : ARG) : P.BACKEND = struct
       self.evs <- [];
       self.n_evs <- 0;
       Writer.write_string_l writer b;
+    )
+
+  (* check if we need to flush the batch *)
+  let check_batch (self:local_buf) ~now : unit =
+    if self.n_evs > batch_size ||
+       (self.n_evs > 0 && now -. Atomic.get last_batch_flush > max_batch_interval_us)
+    then (
+      Atomic.set last_batch_flush now;
+      flush_batch self;
     )
 
   (* per-thread buffer *)
@@ -40,6 +53,10 @@ module Make(A : ARG) : P.BACKEND = struct
   let teardown () =
     Thread_local.clear buf;
     Writer.close writer
+
+  let tick () =
+    let now = P.Clock.now_us() in
+    Thread_local.iter buf ~f:(check_batch ~now)
 
   module Out = Json_buf_
 
@@ -62,7 +79,7 @@ module Make(A : ARG) : P.BACKEND = struct
       ~id ~name ~ph ~tid ~pid ~cat ~ts_sec ~args ~stack ~dur ?extra () : unit =
 
     (* access local buffer to write and add to batch *)
-    let lbuf = Thread_local.get_or_create buf ~t_id:tid in
+    let lbuf = Thread_local.get_or_create buf in
 
     let j =
       let buf = lbuf.buf in
@@ -135,9 +152,10 @@ module Make(A : ARG) : P.BACKEND = struct
 
     lbuf.evs <- j :: lbuf.evs;
     lbuf.n_evs <- 1 + lbuf.n_evs;
-    if lbuf.n_evs > 100 then (
-      flush_batch lbuf;
-      Gc_stats.maybe_emit ~now:ts_sec ~pid ();
-    );
+
+    (* see if we need to flush batch or emit GC counters *)
+    check_batch lbuf ~now:ts_sec;
+    Gc_stats.maybe_emit ~now:ts_sec ~pid ();
+
     ()
 end

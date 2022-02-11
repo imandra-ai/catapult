@@ -124,17 +124,25 @@ let[@inline] with2 ?cat ?pid ?tid ?args name f x y =
 let[@inline] with3 ?cat ?pid ?tid ?args name f x y z =
   with1  ?cat ?pid ?tid ?args name (fun () -> f x y z) ()
 
+let[@inline] begin' ?cat ?pid ?tid ?args name =
+  match !out_ with
+  | None -> ()
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name B
+
+let[@inline] exit' ?cat ?pid ?tid ?args name =
+  match !out_ with
+  | None -> ()
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name E
+
 let[@inline] obj_new ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b ->
-    emit_real_ b  ?cat ?pid ?tid ?args name ~id N
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name ~id N
 
 let[@inline] obj_delete ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b ->
-    emit_real_ b  ?cat ?pid ?tid ?args name ~id D
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name ~id D
 
 let[@inline] obj_snap ?cat ?pid ?tid ?(args=[]) name ~snapshot ~id =
   match !out_ with
@@ -167,20 +175,17 @@ let[@inline] a_begin
      ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b ->
-    emit_real_ b  ?cat ?pid ?tid ?args name ~id A_b
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name ~id A_b
 
 let[@inline] a_exit ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b ->
-    emit_real_ b  ?cat ?pid ?tid ?args name ~id A_e
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name ~id A_e
 
 let[@inline] a_snap ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b ->
-    emit_real_ b  ?cat ?pid ?tid ?args name A_n ~id
+  | Some b -> emit_real_ b  ?cat ?pid ?tid ?args name A_n ~id
 
 let[@inline] a_with1 ?cat ?pid ?tid ?args name ~id f x =
   with1_gen_  ?cat ?pid ?tid ?args name ~id A_b A_e f x
@@ -206,6 +211,10 @@ let[@inline] f_step ?cat ?pid ?tid ?args name ~id =
   | None -> ()
   | Some b ->
     emit_real_ b  ?cat ?pid ?tid ?args name ~id F_t
+
+let[@inline] tick () = match !out_ with
+  | None -> ()
+  | Some (module B) -> B.tick()
 
 module Syntax = struct
   let (let@) x f = x f

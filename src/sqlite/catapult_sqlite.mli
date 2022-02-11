@@ -11,7 +11,7 @@
 
 include Catapult.IMPL
 
-val set_sqlite_sync : [`OFF | `NORMAL] -> unit
+val set_sqlite_sync : [`OFF | `NORMAL | `FULL] -> unit
 (** Set level of crash safety for sqlite.
     See {!Writer.create} for more details. *)
 
