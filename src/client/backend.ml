@@ -1,4 +1,5 @@
 
+open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
 
