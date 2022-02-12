@@ -257,10 +257,10 @@ end = struct
           Tr.instant "open.trace" ~args:["id", `String id];
 
           flush_batch();
-          if !trace_id <> "" then Writer.decr_trace self.writer !trace_id;
+          if !trace_id <> "" then Writer.decr_trace self.writer ~trace_id:!trace_id;
 
           (* start new batch *)
-          Writer.incr_trace self.writer id;
+          Writer.incr_trace self.writer ~trace_id:id;
           trace_id := id;
           batch := [];
 
@@ -304,7 +304,7 @@ end = struct
     let exit() =
       Atomic.decr self.n_clients;
       flush_batch();
-      if !trace_id<>"" then Writer.decr_trace self.writer !trace_id;
+      if !trace_id<>"" then Writer.decr_trace self.writer ~trace_id:!trace_id;
       close_in_noerr ic;
       close_out_noerr oc;
     in
@@ -373,7 +373,7 @@ module Ticker_thread = struct
         let now = P.Clock.now_us() in
 
         Tr.tick();
-        Tr.counter "daemon" [
+        Tr.counter "daemon" ~cs:[
           "writer", Writer.size writer;
           "clients", Server.n_clients server;
         ];
