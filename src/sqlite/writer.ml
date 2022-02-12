@@ -50,7 +50,7 @@ let create
   let file = match file with
     | Some f -> f
     | None ->
-      (try Sys.mkdir dir 0o755 with _ ->());
+      (try ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)) : int) with _ ->());
       Filename.concat dir (trace_id ^ ".db")
   in
   let db = Db.db_open ~mutex:`FULL file in
