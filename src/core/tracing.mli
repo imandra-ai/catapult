@@ -9,7 +9,8 @@
 
 type backend = (module Backend.S)
 
-type arg = [`Int of int | `String of string]
+(* NOTE: this is equal to {!Arg.t} *)
+type arg = [`Int of int | `String of string | `Bool of bool | `Null]
 
 type 'a emit_fun =
   ?cat:string list ->

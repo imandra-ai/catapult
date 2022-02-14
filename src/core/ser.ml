@@ -3,36 +3,49 @@
 module Bare = Bare_encoding
 module Arg_value = struct
   type t =
-    | Arg_value_0 of int64
-    | Arg_value_1 of string
+    | Int64 of int64
+    | String of string
+    | Bool of bool
+    | Void
     
   
   (** @raise Invalid_argument in case of error. *)
   let decode (dec: Bare.Decode.t) : t =
     let tag = Bare.Decode.uint dec in
     match tag with
-    | 0L -> Arg_value_0 (Bare.Decode.i64 dec)
-    | 1L -> Arg_value_1 (Bare.Decode.string dec)
+    | 0L -> Int64 (Bare.Decode.i64 dec)
+    | 1L -> String (Bare.Decode.string dec)
+    | 2L -> Bool (Bare.Decode.bool dec)
+    | 3L -> Void
     | _ -> invalid_arg
       (Printf.sprintf "unknown union tag Arg_value.t: %Ld" tag)
     
   
   let encode (enc: Bare.Encode.t) (self: t) : unit =
     match self with
-    | Arg_value_0 x ->
+    | Int64 x ->
       Bare.Encode.uint enc 0L;
       Bare.Encode.i64 enc x
-    | Arg_value_1 x ->
+    | String x ->
       Bare.Encode.uint enc 1L;
       Bare.Encode.string enc x
+    | Bool x ->
+      Bare.Encode.uint enc 2L;
+      Bare.Encode.bool enc x
+    | Void ->
+      Bare.Encode.uint enc 3L
     
     
     let pp out (self:t) : unit =
       match self with
-      | Arg_value_0 x ->
-        Format.fprintf out "(@[Arg_value_0@ %a@])" Bare.Pp.int64 x
-      | Arg_value_1 x ->
-        Format.fprintf out "(@[Arg_value_1@ %a@])" Bare.Pp.string x
+      | Int64 x ->
+        Format.fprintf out "(@[Int64@ %a@])" Bare.Pp.int64 x
+      | String x ->
+        Format.fprintf out "(@[String@ %a@])" Bare.Pp.string x
+      | Bool x ->
+        Format.fprintf out "(@[Bool@ %a@])" Bare.Pp.bool x
+      | Void ->
+        Format.fprintf out "Void"
       
       
 end

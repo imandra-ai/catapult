@@ -143,14 +143,18 @@ module Backend() : P.BACKEND = struct
     let int out i = string out (string_of_int i)
     let int64 out i = string out (Int64.to_string i)
     let float out f = string out (Printf.sprintf "%.1f" f)
+    let bool out = function true -> string out "true" | false -> string out "false"
     let str_val oc (s:string) =
       char oc '"';
       let s = if String.contains s '"' then String.escaped s else s in
       string oc s;
       char oc '"'
+    let null oc = string oc "null"
     let arg oc = function
       | `Int i -> int oc i
       | `String s -> str_val oc s
+      | `Bool b -> bool oc b
+      | `Null -> null oc
   end
 
   let[@inline] field_col oc = Out.char oc ':'

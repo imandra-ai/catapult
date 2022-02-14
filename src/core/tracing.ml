@@ -29,7 +29,12 @@ end
 
 let pid = Unix.getpid()
 
-type arg = [`Int of int | `String of string]
+type arg = [`Int of int | `String of string | `Bool of bool | `Null]
+
+let () =
+  (* make sure Arg.t = arg *)
+  let _check_cast : Arg.t -> arg = (fun x->x) in
+  ()
 
 type 'a emit_fun =
   ?cat:string list ->

@@ -74,9 +74,12 @@ let to_json buf (ev:P.Ser.Event.t) : string =
       Array.iteri (fun i {P.Ser.Arg.key; value} ->
           if i>0 then field_sep buf;
           Out.str_val buf key; field_col buf;
-          match value with
-            | P.Ser.Arg_value.Arg_value_0 i -> Out.int64 buf i
-            | P.Ser.Arg_value.Arg_value_1 s -> Out.str_val buf s)
+          begin match value with
+            | P.Ser.Arg_value.Int64 i -> Out.int64 buf i
+            | P.Ser.Arg_value.String s -> Out.str_val buf s
+            | P.Ser.Arg_value.Bool s -> Out.bool buf s
+            | P.Ser.Arg_value.Void -> Out.null buf
+          end)
         args;
       Out.char buf '}';
       field_sep buf;

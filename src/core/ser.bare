@@ -1,5 +1,5 @@
 
-type Arg_value (i64 | string)
+type Arg_value (i64 | string | bool | void)
 
 type Arg {
   key: string
