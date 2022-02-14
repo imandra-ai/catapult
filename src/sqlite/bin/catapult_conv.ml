@@ -9,12 +9,35 @@ let[@inline] check_db_ e = match e with
   | e ->
     failwith ("db error: " ^ Db.Rc.to_string e)
 
+module Dir = Directories.Project_dirs(struct
+    let qualifier = "ai"
+    let organization = "imandra"
+    let application = "catapult"
+  end)
+
 let write_json ~files ~out () =
   let oc = open_out out in
   let@ () = Fun.protect ~finally:(fun () -> close_out oc) in
 
   let first = ref true in
   let output_file file =
+
+    (* resolve file *)
+    let file =
+      let fail() =
+        failwith (Printf.sprintf "file %S does not exist" file)
+      in
+      if Sys.file_exists file then file
+      else (
+        begin match Dir.data_dir with
+          | Some d ->
+            let file_in_d = Filename.concat d file in
+            if Sys.file_exists file_in_d then file_in_d else fail()
+          | None -> fail()
+        end
+      )
+    in
+
     if !debug_ then Printf.eprintf "reading file %S\n%!" file;
     let n_read = ref 0 in
 
@@ -73,6 +96,15 @@ let () =
     conv ~files ~out ();
     if !debug_ then Printf.eprintf "done in %.3fs\n%!" (Sys.time());
   ) else (
-    failwith "please provide at least one file"
+    begin match Dir.data_dir with
+      | None -> failwith "please provide at least one file"
+      | Some d ->
+        let files = Sys.readdir d in
+        Printf.printf "no file provided.\n";
+        if files<>[||] then (
+          Printf.printf "daemon files:\n";
+          Array.iter (Printf.printf "%s\n") files
+        )
+    end
   )
 
