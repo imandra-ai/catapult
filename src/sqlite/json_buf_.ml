@@ -9,8 +9,7 @@ let null oc = string oc "null"
 
 let str_val oc (s:string) =
   char oc '"';
-  let s = if String.contains s '"' then String.escaped s else s in
-  string oc s;
+  string oc (String.escaped s);
   char oc '"'
 
 let arg oc = function

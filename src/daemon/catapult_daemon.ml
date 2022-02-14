@@ -70,7 +70,7 @@ end = struct
     match Str_tbl.find_opt self.dbs trace_id with
     | Some db -> Atomic.incr db.refcount
     | None ->
-      let writer = P_db.Writer.create ~dir:self.dir ~trace_id () in
+      let writer = P_db.Writer.create ~append:true ~dir:self.dir ~trace_id () in
       Str_tbl.add self.dbs trace_id
         {writer; refcount=Atomic.make 1; n_batches=0;};
       ()
