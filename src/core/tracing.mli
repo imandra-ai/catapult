@@ -9,11 +9,13 @@
 
 type backend = (module Backend.S)
 
+type arg = [`Int of int | `String of string]
+
 type 'a emit_fun =
   ?cat:string list ->
   ?pid:int ->
   ?tid:int ->
-  ?args:(string*Arg.t) list ->
+  ?args:(string*arg) list ->
   string ->
   'a
 (** An emitter function. The positional string argument is the name.

@@ -29,6 +29,8 @@ end
 
 let pid = Unix.getpid()
 
+type arg = [`Int of int | `String of string]
+
 type 'a emit_fun =
   ?cat:string list ->
   ?pid:int ->
