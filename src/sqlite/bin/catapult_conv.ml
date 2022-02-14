@@ -99,11 +99,15 @@ let () =
     begin match Dir.data_dir with
       | None -> failwith "please provide at least one file"
       | Some d ->
-        let files = Sys.readdir d in
+        let files = ref [] in
+        Array.iter (fun f ->
+            if Filename.extension f = ".db" then files := f :: !files)
+          (Sys.readdir d);
+        files := List.sort String.compare !files;
         Printf.printf "no file provided.\n";
-        if files<>[||] then (
+        if !files<>[] then (
           Printf.printf "daemon files:\n";
-          Array.iter (Printf.printf "%s\n") files
+          List.iter (Printf.printf "%s\n") !files
         )
     end
   )

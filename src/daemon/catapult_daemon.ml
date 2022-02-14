@@ -203,7 +203,10 @@ end = struct
         let ip = Unix.inet_addr_of_string h in
         Unix.ADDR_INET (ip, port), true, ""
     in
-    if tcp then Unix.setsockopt sock Unix.TCP_NODELAY true;
+    Unix.setsockopt sock Unix.SO_REUSEADDR true;
+    if tcp then (
+      Unix.setsockopt sock Unix.TCP_NODELAY true;
+    );
     Unix.setsockopt_optint sock Unix.SO_LINGER None;
     (* unix socket: remove it if it exists *)
     (* FIXME: systemd socket activation *)
