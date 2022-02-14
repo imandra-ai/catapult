@@ -21,6 +21,10 @@ val enabled : unit -> bool
 val set_trace_id : string -> unit
 val get_trace_id : unit -> string
 
+val set_multiproc : bool -> unit
+(** Multiprocess mode?
+    If true, then the file will not be truncated. *)
+
 val set_dir : string -> unit
 (** Set directory in which to store the database by its trace ID. *)
 

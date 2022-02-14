@@ -16,6 +16,9 @@ let set_file f = file := f
 let sqlite_sync_ = ref None
 let set_sqlite_sync s = sqlite_sync_ := Some s
 
+let multiproc_ = ref false
+let set_multiproc b = multiproc_ := b
+
 (* try to make a non-stupid default id, based on PID + date.
    This is not perfect, use a UUID4 if possible. *)
 let[@inline never] invent_trace_id_ () : string =
@@ -60,7 +63,8 @@ let setup_ = lazy (
     at_exit P.Control.teardown;
     let trace_id = get_trace_id() in
     let file = if !file="" then None else Some !file in
-    let writer = Writer.create ?sync:!sqlite_sync_ ?file ~trace_id ~dir:!dir () in
+    let append = !multiproc_ in (* do not truncate if others also write *)
+    let writer = Writer.create ~append ?sync:!sqlite_sync_ ?file ~trace_id ~dir:!dir () in
     let module B = Backend.Make(struct
         let writer = writer
       end) in

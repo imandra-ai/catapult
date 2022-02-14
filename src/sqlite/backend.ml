@@ -21,7 +21,7 @@ module Make(A : ARG) : P.BACKEND = struct
     mutable n_evs: int;
   }
 
-  let batch_size = 100
+  let batch_size = (try int_of_string @@ Sys.getenv "TRACE_BATCH_SIZE" with _ -> 100)
   let max_batch_interval_us = 2e5 (* max time between 2 flushes *)
   let last_batch_flush = Atomic.make (P.Clock.now_us())
 
