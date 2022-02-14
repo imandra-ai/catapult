@@ -2,5 +2,6 @@
 (executable
   (name heavy)
   (optional)
-  (libraries threads.posix catapult catapult-file catapult-sqlite
+  (libraries threads.posix unix
+             catapult catapult-file catapult-sqlite
              catapult-client))
