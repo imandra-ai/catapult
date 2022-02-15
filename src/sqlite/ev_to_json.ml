@@ -1,16 +1,15 @@
 
 module P = Catapult
-
-module Out = Json_buf_
+module Out = Catapult_utils.Json_out
 
 let[@inline] field_col oc = Out.char oc ':'
 let[@inline] field_sep oc = Out.char oc ','
 
-let any_val oc (j:string) = Out.string oc j
+let any_val oc (j:string) = Out.raw_string oc j
 
 (* emit [k:v] using printer [f] for the value *)
 let field oc k f v : unit =
-  Out.string oc k;
+  Out.raw_string oc k;
   field_col oc;
   f oc v
 
@@ -50,7 +49,7 @@ let to_json buf (ev:P.Ser.Event.t) : string =
     );
 
   opt_iter stack (fun s ->
-      Out.string buf {|"stack"|};
+      Out.raw_string buf {|"stack"|};
       field_col buf;
       Out.char buf '[';
       Array.iteri (fun i x -> if i>0 then field_sep buf; any_val buf x) s;
@@ -59,16 +58,16 @@ let to_json buf (ev:P.Ser.Event.t) : string =
     );
 
   opt_iter cat (fun cs ->
-      Out.string buf {|"cat"|};
+      Out.raw_string buf {|"cat"|};
       field_col buf;
       Out.char buf '"';
-      Array.iteri (fun i x -> if i>0 then field_sep buf; Out.string buf x) cs;
+      Array.iteri (fun i x -> if i>0 then field_sep buf; Out.raw_string buf x) cs;
       Out.char buf '"';
       field_sep buf;
     );
 
   opt_iter args (fun args ->
-      Out.string buf {|"args"|};
+      Out.raw_string buf {|"args"|};
       field_col buf;
       Out.char buf '{';
       Array.iteri (fun i {P.Ser.Arg.key; value} ->

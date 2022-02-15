@@ -137,40 +137,16 @@ module Backend() : P.BACKEND = struct
     Gc_stats.maybe_emit ~now ~pid ();
     State.flush state
 
-  module Out = struct
-    let char = Buffer.add_char
-    let string = Buffer.add_string
-    let int out i = string out (string_of_int i)
-    let int64 out i = string out (Int64.to_string i)
-    let float out f = string out (Printf.sprintf "%.1f" f)
-    let bool out = function true -> string out "true" | false -> string out "false"
-    let str_val oc (s:string) =
-      char oc '"';
-      let s = if String.contains s '"' then String.escaped s else s in
-      string oc s;
-      char oc '"'
-    let null oc = string oc "null"
-    let arg oc = function
-      | `Int i -> int oc i
-      | `String s -> str_val oc s
-      | `Bool b -> bool oc b
-      | `Null -> null oc
-  end
+  module Out = Catapult_utils.Json_out
 
   let[@inline] field_col oc = Out.char oc ':'
   let[@inline] field_sep oc = Out.char oc ','
 
-  let any_val oc (j:string) = Out.string oc j
-
-  let str_val oc (s:string) =
-    Out.char oc '"';
-    let s = if String.contains s '"' then String.escaped s else s in
-    Out.string oc s;
-    Out.char oc '"'
+  let any_val oc (j:string) = Out.raw_string oc j
 
   (* emit [k:v] using printer [f] for the value *)
   let field oc k f v : unit =
-    Out.string oc k;
+    Out.raw_string oc k;
     field_col oc;
     f oc v
 
@@ -188,7 +164,7 @@ module Backend() : P.BACKEND = struct
 
     Out.char buf '{';
 
-    field buf {|"name"|} str_val name;
+    field buf {|"name"|} Out.str_val name;
     field_sep buf;
 
     field buf {|"ph"|} Out.char (P.Event_type.to_char ph);
@@ -206,12 +182,12 @@ module Backend() : P.BACKEND = struct
       );
 
     opt_iter id (fun i ->
-        field buf {|"id"|} str_val i;
+        field buf {|"id"|} Out.str_val i;
         field_sep buf;
       );
 
     opt_iter stack (fun s ->
-        Out.string buf {|"stack"|};
+        Out.raw_string buf {|"stack"|};
         field_col buf;
         Out.char buf '[';
         List.iteri (fun i x -> if i>0 then field_sep buf; any_val buf x) s;
@@ -220,21 +196,21 @@ module Backend() : P.BACKEND = struct
       );
 
     opt_iter cat (fun cs ->
-        Out.string buf {|"cat"|};
+        Out.raw_string buf {|"cat"|};
         field_col buf;
         Out.char buf '"';
-        List.iteri (fun i x -> if i>0 then field_sep buf; Out.string buf x) cs;
+        List.iteri (fun i x -> if i>0 then field_sep buf; Out.raw_string buf x) cs;
         Out.char buf '"';
         field_sep buf;
       );
 
     opt_iter args (fun args ->
-        Out.string buf {|"args"|};
+        Out.raw_string buf {|"args"|};
         field_col buf;
         Out.char buf '{';
         List.iteri (fun i (k,v) ->
             if i>0 then field_sep buf;
-            str_val buf k; field_col buf; Out.arg buf (v:P.Arg.t))
+            Out.str_val buf k; field_col buf; Out.arg buf (v:P.Arg.t))
           args;
         Out.char buf '}';
         field_sep buf;
@@ -242,7 +218,7 @@ module Backend() : P.BACKEND = struct
 
     opt_iter extra (fun l ->
         List.iter (fun (x,y) ->
-            str_val buf x; field_col buf; str_val buf y;
+            Out.str_val buf x; field_col buf; Out.str_val buf y;
             field_sep buf)
           l);
 
