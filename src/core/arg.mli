@@ -4,5 +4,5 @@
     to store custom data, debug messages, etc.
 *)
 
-type t = [`Int of int | `String of string | `Bool of bool | `Null]
+type t = [`Int of int | `String of string | `Float of float | `Bool of bool | `Null]
 

@@ -2,6 +2,6 @@
 (executable
   (name catapult_daemon)
   (public_name catapult-daemon)
-  (libraries catapult catapult-sqlite sqlite3
+  (libraries catapult catapult-sqlite zmq sqlite3
              directories logs)
   (package catapult-daemon))

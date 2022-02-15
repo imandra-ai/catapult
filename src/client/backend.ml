@@ -23,6 +23,7 @@ module Make(A : ARG) : P.BACKEND = struct
     let value = match a with
       | `Int x -> Arg_value.Int64 (Int64.of_int x)
       | `String s -> Arg_value.String s
+      | `Float f -> Arg_value.Float64 f
       | `Bool b -> Arg_value.Bool b
       | `Null -> Arg_value.Void
     in

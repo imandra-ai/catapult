@@ -7,166 +7,154 @@ module Atomic = P.Atomic_shim_
 module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
 open Tr.Syntax
 
-type batch = P.Ser.Event.t list
+type event = P.Ser.Event.t
+type batch = event list
 
-(* TODO: move most of this into sqlite library *)
+let now_us = P.Clock.now_us
+
+(** Handler writers for each trace *)
 module Writer : sig
   type t
   val create :
     dir:string ->
     unit -> t
 
+  val close : t -> unit
+
   val size : t -> int
 
+  val incr_conn : t -> trace_id:string -> unit
+
+  val decr_conn : t -> trace_id:string -> unit
+
+  val write : t -> trace_id:string -> event -> unit
+
   (** Write a batch to the SQLITE database for this trace *)
-  val send_batch : t -> trace_id:string -> batch -> unit
+  val write_batch : t -> trace_id:string -> batch -> unit
 
-  val decr_trace : t -> trace_id:string -> unit
-
-  val incr_trace : t -> trace_id:string -> unit
+  val tick : t -> unit
 end = struct
   module Str_tbl = Hashtbl.Make(struct
       include String  let hash=Hashtbl.hash
     end)
 
-  type db_conn = {
-    refcount: int Atomic.t;
-    writer: P_db.Writer.t;
-    mutable n_batches: int;
-  }
+  (* close connection after that much time elapsed without writes. *)
+  let close_after_us = 30. *. 1e6
 
-  type action =
-    | Incr of string
-    | Decr of string
-    | Batch of {
-        trace_id: string;
-        b: batch;
-      }
+  (* connection to a DB. Closed and removed if unused for more
+     than {!close_after_us} *)
+  type db_conn = {
+    writer: P_db.Writer.t;
+    last_write: float Atomic.t;
+    rc: int Atomic.t;
+  }
 
   type t = {
     dir: string;
     dbs: db_conn Str_tbl.t;
-    lock: Mutex.t;
-    q: action Queue.t;
+    (* TODO: remove, unless we use domains for parallel encoding
+       lock: Mutex.t;
+       *)
     buf: Buffer.t;
-    stop: bool Atomic.t;
   }
 
-  let size self = Str_tbl.length self.dbs
+  (* NOTE: useless, a remnant of multithreaded version *)
+  let[@inline] with_lock _self f = f ()
 
-  let[@inline] with_lock self f =
-    Mutex.lock self.lock;
-    try
-      let x=f() in
-      Mutex.unlock self.lock;
-      x
-    with e ->
-      Mutex.unlock self.lock;
-      raise e
+  let size self =
+    let@ () = with_lock self in
+    Str_tbl.length self.dbs
 
-  (* open trace, or increment refcount *)
-  let incr_trace_ (self:t) ~trace_id : unit =
+  let close_ (self:t) ~trace_id (db:db_conn) : unit =
+    Tr.instant "db.close" ~args:["trace_id", `String trace_id];
+    P_db.Writer.close db.writer
+
+  let[@inline never] open_ (self:t) ~trace_id ~rc : db_conn =
+    Tr.instant "db.open" ~args:["trace_id", `String trace_id];
+    let writer = P_db.Writer.create ~append:true ~dir:self.dir ~trace_id () in
+    let db = {
+      writer; rc=Atomic.make rc;
+      last_write=Atomic.make @@ now_us() } in
+    Str_tbl.add self.dbs trace_id db;
+    db
+
+  (* obtain DB connection for this ID *)
+  let get_db_ (self:t) ~trace_id : db_conn =
     with_lock self @@ fun () ->
     match Str_tbl.find_opt self.dbs trace_id with
-    | Some db -> Atomic.incr db.refcount
-    | None ->
-      let writer = P_db.Writer.create ~append:true ~dir:self.dir ~trace_id () in
-      Str_tbl.add self.dbs trace_id
-        {writer; refcount=Atomic.make 1; n_batches=0;};
-      ()
-
-  (* decrement refcount and possibly close trace *)
-  let decr_trace_ self ~trace_id : unit =
-    match Str_tbl.find_opt self.dbs trace_id with
-    | None ->
-      Tr.instant "err" ~args:["trace-not-opened", `String trace_id];
-      Log.err (fun k->k "trace %S not opened" trace_id); assert false
-    | Some db ->
-      let n = Atomic.fetch_and_add db.refcount (-1) in
-      if n=1 then (
-        Str_tbl.remove self.dbs trace_id;
-        assert (Atomic.get db.refcount = 0);
-        Log.info (fun k->k "close writer to %s" trace_id);
-        P_db.Writer.close db.writer;
-      )
-
-  (* obtain an already opened trace writer *)
-  let get_writer_ self ~trace_id : db_conn =
-    match Str_tbl.find_opt self.dbs trace_id with
     | Some db -> db
-    | None ->
-      Logs.err (fun k->k "DB for trace %S not opened" trace_id);
-      assert false
+    | None -> open_ self ~trace_id ~rc:0
 
-  let write_loop_ self : unit =
-    let@ () = Tr.with_ "writer.loop" in
-    let delay = ref 0.001 in
-    while not (Atomic.get self.stop) do
-      match with_lock self (fun () -> Queue.take_opt self.q) with
-      | None ->
-        (* just spin *)
-        begin
-          Thread.delay !delay;
-        end;
-        delay := min 0.1 (!delay *. 0.2 );
+  let incr_conn (self:t) ~trace_id : unit =
+    with_lock self @@ fun () ->
+    match Str_tbl.find_opt self.dbs trace_id with
+    | Some db -> Atomic.incr db.rc
+    | None -> ignore (open_ self ~trace_id ~rc:1 : db_conn)
 
-      | Some (Incr trace_id) ->
-        delay := 0.001;
-        incr_trace_ self ~trace_id
+  let decr_conn (self:t) ~trace_id =
+    with_lock self @@ fun () ->
+    match Str_tbl.find_opt self.dbs trace_id with
+    | Some db ->
+      let n = Atomic.fetch_and_add db.rc (-1) in
+      if n=1 then (
+        close_ self ~trace_id db;
+        Str_tbl.remove self.dbs trace_id
+      )
+    | None -> ()
 
-      | Some (Decr trace_id) ->
-        delay := 0.001;
-        decr_trace_ self ~trace_id
+  let[@inline] str_of_ev_ (self:t) (ev:event) : string =
+    P_db.Ev_to_json.to_json self.buf ev
 
-      | Some (Batch {trace_id; b=batch}) ->
-        delay := 0.001;
+  let write (self:t) ~trace_id (ev:event) : unit =
+    let@ () = with_lock self in
+    let s = str_of_ev_ self ev in
+    let db = get_db_ self ~trace_id in
+    Atomic.set db.last_write (now_us ());
+    P_db.Writer.write_string db.writer s
 
-        (* encode events to json string *)
-        let encoded_evs =
-          batch
-          |> List.map (P_db.Ev_to_json.to_json self.buf)
-        in
+  let write_batch (self:t) ~trace_id (b:event list) : unit =
+    let@ () = with_lock self in
+    let l = List.map (str_of_ev_ self) b in
+    let db = get_db_ self ~trace_id in
+    Atomic.set db.last_write (now_us ());
+    P_db.Writer.write_string_l db.writer l
 
-        let db = get_writer_ self ~trace_id in
-        begin
-          P_db.Writer.write_string_l db.writer encoded_evs;
-        end;
+  let close self =
+    let@ () = with_lock self in
+    let close_conn_ trace_id db =
+      close_ self ~trace_id db
+    in
+    Str_tbl.iter close_conn_ self.dbs;
+    Str_tbl.clear self.dbs
 
-        db.n_batches <- 1 + db.n_batches;
-        if db.n_batches > 20 then (
-          db.n_batches <- 0;
-          (* give a chance to the DB to write checkpoints, etc. *)
-          P_db.Writer.cycle_stmt db.writer;
-        )
-    done
+  (* perform background work: cleaning up connections not used in
+     a while *)
+  let tick (self:t) : unit =
+    let@ () = with_lock self in
+    let now = now_us() in
+    Str_tbl.filter_map_inplace
+      (fun trace_id db ->
+         let age = now -. Atomic.get db.last_write in
+         if age > close_after_us then (
+           Tr.instant "db.gc"
+             ~args:["trace_id", `String trace_id;
+                    "age", `Float (age *. 1e-6)];
+           close_ self ~trace_id db; (* collect *)
+           None
+         ) else Some db)
+      self.dbs
 
   let create ~dir () : t =
     let self = {
       dir;
       dbs=Str_tbl.create 32;
-      lock=Mutex.create();
-      q=Queue.create();
       buf=Buffer.create 1024;
-      stop=Atomic.make false;
     } in
-    ignore (Thread.create write_loop_ self : Thread.t);
-    (* TODO: writer thread *)
     self
-
-  let[@inline] send_batch (self:t) ~trace_id b : unit =
-    with_lock self @@ fun () ->
-    Queue.push (Batch {trace_id; b}) self.q
-
-  let incr_trace self ~trace_id =
-    Tr.instant "incr-trace" ~args:["id", `String trace_id];
-    with_lock self @@ fun () ->
-    Queue.push (Incr trace_id) self.q
-
-  let decr_trace self ~trace_id =
-    Tr.instant "decr-trace" ~args:["id", `String trace_id];
-    with_lock self @@ fun () ->
-    Queue.push (Decr trace_id) self.q
 end
+
+(* TODO: use multicore + domainslib to parallelize parsing
+   of events and their serialization to JSON values. *)
 
 module Server : sig
   type t
@@ -176,7 +164,6 @@ module Server : sig
     writer:Writer.t ->
     unit -> t
 
-  val n_clients : t -> int
   val stop : t -> unit
 
   val run : t -> unit
@@ -186,177 +173,77 @@ end = struct
   type t = {
     writer: Writer.t;
     addr: Addr.t;
-    sock: Unix.file_descr;
+    ctx: Zmq.Context.t;
+    sock: [`Dealer] Zmq.Socket.t;
     stop: bool Atomic.t;
-    n_clients: int Atomic.t;
-    (* TODO: sock *)
   }
 
-  let setup_sock addr : Unix.file_descr =
-    let dom = match addr with
-      | Addr.Unix _ -> Unix.PF_UNIX
-      | Addr.Tcp _ -> Unix.PF_INET in
-    let sock = Unix.socket ~cloexec:true dom Unix.SOCK_STREAM 0 in
-    let addr, tcp, file = match addr with
-      | Addr.Unix s -> Unix.ADDR_UNIX s, false, s
-      | Addr.Tcp (h,port) ->
-        let ip = Unix.inet_addr_of_string h in
-        Unix.ADDR_INET (ip, port), true, ""
+  let setup_sock ~ctx ~addr () : _ =
+    (* TODO?
+    let tcp, file = match addr with
+      | Addr.Unix s -> false, s
+      | Addr.Tcp (h,port) -> true, ""
     in
-    Unix.setsockopt sock Unix.SO_REUSEADDR true;
-    if tcp then (
-      Unix.setsockopt sock Unix.TCP_NODELAY true;
-    );
-    Unix.setsockopt_optint sock Unix.SO_LINGER None;
     (* unix socket: remove it if it exists *)
     (* FIXME: systemd socket activation *)
     if not tcp then (try Sys.remove file with _ -> ());
-    Unix.bind sock addr;
-    Unix.listen sock 32;
+       *)
+    let sock = Zmq.Socket.create ctx Zmq.Socket.dealer in
+    let addr_str = Addr.to_string addr in
+    Zmq.Socket.bind sock addr_str;
     sock
 
-  let string_of_sockaddr (addr:Unix.sockaddr) : string =
-    match addr with
-    | Unix.ADDR_INET (addr,port) ->
-      Addr.to_string (Addr.Tcp (Unix.string_of_inet_addr addr, port))
-    | Unix.ADDR_UNIX s ->
-      Addr.to_string (Addr.Unix s)
+  let handle_client_msg (self:t) (msg:P.Ser.Client_message.t) : unit =
+    Log.debug (fun k->k "client msg:@ %a" P.Ser.Client_message.pp msg);
 
-  let serve_client_ (self:t) (conn:Unix.file_descr) : unit =
-    Tr.meta_thread_name (Printf.sprintf "catapult-client-thread-%d" (Thread.id (Thread.self())));
-    Tr.begin' "serve.client";
-    Atomic.incr self.n_clients;
+    begin match msg with
+      | P.Ser.Client_message.Client_open_trace {trace_id} ->
+        Log.info (fun k->k "client opened trace %S" trace_id);
+        Tr.instant "open.trace" ~args:["id", `String trace_id];
+        Writer.incr_conn self.writer ~trace_id;
 
-    let ic = Unix.in_channel_of_descr conn in
-    let oc = Unix.out_channel_of_descr conn in
+      | P.Ser.Client_message.Client_emit {trace_id; ev} ->
+        Writer.write self.writer ~trace_id ev
 
-    let trace_id = ref "" in
-    let batch = ref [] in
-    let batch_len = ref 0 in
-
-    (* send batch of events to writer. *)
-    let flush_batch () =
-      if !batch_len > 0 then (
-        let b = List.rev !batch in
-
-        (* prepare a new batch *)
-        batch_len := 0;
-        batch := [];
-
-        Writer.send_batch self.writer ~trace_id:!trace_id b;
-      );
-    in
-
-    let buf = ref (Bytes.create (16 * 1024)) in
-
-    let continue = ref true in
-
-    let handle_client_msg (msg:P.Ser.Client_message.t) : unit =
-      Log.debug (fun k->k "client msg:@ %a" P.Ser.Client_message.pp msg);
-
-      begin match msg with
-        | P.Ser.Client_message.Client_open_trace {trace_id=id} ->
-          Log.info (fun k->k "client opened trace %S" id);
-          Tr.instant "open.trace" ~args:["id", `String id];
-
-          flush_batch();
-          if !trace_id <> "" then Writer.decr_trace self.writer ~trace_id:!trace_id;
-
-          (* start new batch *)
-          Writer.incr_trace self.writer ~trace_id:id;
-          trace_id := id;
-          batch := [];
-
-        | P.Ser.Client_message.Client_emit {ev} ->
-          if !trace_id = "" then (
-            Log.err (fun k->k "client: no trace ID opened");
-            continue := false
-          ) else (
-            (* add to current batch *)
-            batch := ev :: !batch;
-            incr batch_len;
-            if !batch_len >= 100 then flush_batch();
-          )
-      end;
-      ()
-    in
-
-    let process_message_header_ header =
-      if String.length header > 0 && header.[0] = 'b' then (
-        match int_of_string_opt (String.sub header 1 (String.length header-1)) with
-        | None ->
-          Log.err(fun k->k "invalid header: %S" header);
-          Tr.instant "err" ~args:["invalid-header", `String header];
-          continue := false
-        | Some n ->
-          Log.debug (fun k->k "read client message (size %d)" n);
-          if Bytes.length !buf < n then (
-            buf := Bytes.create (max (Bytes.length !buf*2) n);
-          );
-          really_input ic !buf 0 n;
-          let dec = P.Bare_encoding.Decode.of_bytes ~len:n !buf in
-          let msg = P.Ser.Client_message.decode dec in
-          handle_client_msg msg
-      ) else (
-        Log.err(fun k->k "unknown header: %S@.disconnecting client" header);
-        Tr.instant "err" ~args:["unknown-header", `String header];
-        continue := false
-      )
-    in
-
-    let exit() =
-      Atomic.decr self.n_clients;
-      flush_batch();
-      if !trace_id<>"" then Writer.decr_trace self.writer ~trace_id:!trace_id;
-      close_in_noerr ic;
-      close_out_noerr oc;
-    in
-
-    try
-      while !continue do
-        let header = input_line ic in
-        process_message_header_ header
-      done;
-      Tr.exit' "serve-client" ~args:["reason", `String "conn closed"];
-      exit();
-    with
-    | End_of_file ->
-      Tr.exit' "serve-client" ~args:["reason", `String "end of file"];
-      exit();
-      ()
-    | e ->
-      Log.err (fun k->k "client loop: %s" (Printexc.to_string e));
-      Tr.exit' "serve-client" ~args:["reason", `String (Printexc.to_string e)];
-      exit();
-      ()
+      | P.Ser.Client_message.Client_close_trace {trace_id} ->
+        Log.info (fun k->k "client closed trace %S" trace_id);
+        Writer.decr_conn self.writer ~trace_id
+    end
 
   let create ?(addr=Addr.default) ~writer () : t =
-    let sock = setup_sock addr in
+    let ctx = Zmq.Context.create() in
+    let sock = setup_sock ~addr ~ctx () in
     let self = {
       writer;
-      addr; sock;
+      ctx;
+      sock;
+      addr;
       stop=Atomic.make false;
-      n_clients=Atomic.make 0;
     } in
     self
 
-  let n_clients self = Atomic.get self.n_clients
   let stop self = Atomic.set self.stop true
 
   let run (self:t) : unit =
     let@ () = Tr.with_ "listen.loop" in
     Sys.catch_break true;
 
+    let poll = Zmq.Poll.mask_of [| Zmq.Poll.mask_in self.sock |] in
+    let timeout = 200 in (* milliseconds *)
+
     while not (Atomic.get self.stop) do
-      try
-        let@ () = Tr.with_ "accept" in
-        let conn, client_addr = Unix.accept self.sock in
+      match Zmq.Socket.recv ~block:false self.sock with
+      | msg ->
+        let dec = P.Bare_encoding.Decode.of_string msg in
+        let msg = P.Ser.Client_message.decode dec in
+        handle_client_msg self msg
 
-        Logs.info (fun k->k "new connection from %s" (string_of_sockaddr client_addr));
-        Tr.instant "new-client" ~args:["addr", `String (string_of_sockaddr client_addr)];
+      | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
+        (* just poll *)
+        let@ () = Tr.with_ "poll" in
+        ignore (Zmq.Poll.poll ~timeout poll : _ option array);
 
-        ignore (Thread.create (serve_client_ self) conn : Thread.t);
-      with Sys.Break ->
+      | exception Sys.Break ->
         Tr.instant "sys.break";
         Atomic.set self.stop true
     done
@@ -372,15 +259,15 @@ module Ticker_thread = struct
       let pid = Unix.getpid() in
       while true do
         let@ () = Tr.with_ "tick" in
-        Thread.delay 0.1;
+        Thread.delay 0.2;
         let now = P.Clock.now_us() in
 
         Tr.tick();
         Tr.counter "daemon" ~cs:[
           "writer", Writer.size writer;
-          "clients", Server.n_clients server;
         ];
-        Gc_stats.maybe_emit ~now ~pid ()
+        Gc_stats.maybe_emit ~now ~pid ();
+        Writer.tick writer;
       done
     in
 
@@ -405,7 +292,6 @@ let setup_logs ~debug () =
 
 let () =
   (* tracing for the daemon itself *)
-  Catapult_sqlite.set_sqlite_sync `FULL;
   let@ () = Catapult_sqlite.with_setup in
 
   Tr.meta_process_name "catapult-daemon";

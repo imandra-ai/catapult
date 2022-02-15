@@ -11,6 +11,7 @@ depends: [
   "odoc" {with-doc}
   "catapult" {= version}
   "catapult-sqlite" {= version}
+  "zmq"
   "logs"
 ]
 build: [

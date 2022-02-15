@@ -42,6 +42,7 @@
   (depends
     (catapult (= :version))
     (odoc :with-doc)
+    zmq
     (ocaml (>= "4.08"))))
 
 (package
@@ -51,4 +52,5 @@
     (odoc :with-doc)
     (catapult (= :version))
     (catapult-sqlite (= :version))
+    zmq
     logs))

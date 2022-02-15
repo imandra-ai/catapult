@@ -30,6 +30,7 @@ let arg oc = function
   | `Int i -> int oc i
   | `String s -> str_val oc s
   | `Bool b -> bool oc b
+  | `Float f -> float oc f
   | `Null -> null oc
 
 let char_val oc (c:char) =

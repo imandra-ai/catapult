@@ -2,58 +2,54 @@
 open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
-
 module Atomic = P.Atomic_shim_
 
-let connect_endpoint (addr: P.Endpoint_address.t) : out_channel =
+let connect_endpoint ctx (addr: P.Endpoint_address.t) : [`Dealer] Zmq.Socket.t =
   let module E = P.Endpoint_address in
-  let dom = match addr with
-    | E.Unix _ -> Unix.PF_UNIX
-    | E.Tcp _ -> Unix.PF_INET in
-  let sock = Unix.socket ~cloexec:true dom Unix.SOCK_STREAM 0 in
-  let addr, tcp = match addr with
-    | E.Unix s -> Unix.ADDR_UNIX s, false
-    | E.Tcp (h,port) ->
-      let ip = Unix.inet_addr_of_string h in
-      Unix.ADDR_INET (ip, port), true
-  in
-  if tcp then Unix.setsockopt sock Unix.TCP_NODELAY true;
-  Unix.connect sock addr;
-  Unix.out_channel_of_descr sock
+  let addr_str = E.to_string addr in
+  let sock = Zmq.Socket.create ctx Zmq.Socket.dealer in
+  Zmq.Socket.connect sock addr_str;
+  sock
 
 (** Thread local logger. Each logger has a connection to the
     server/daemon. *)
 module Logger = struct
   type t = {
     t_id: int; (* thread id *)
+    trace_id: string; (* int, obtain from server *)
     buf: Buffer.t;
     out: P.Bare_encoding.Encode.t; (* outputs to buf *)
-    oc: out_channel;
+    sock: [`Dealer] Zmq.Socket.t;
     mutable closed: bool;
   }
 
   let send_msg (self:t) (msg:P.Ser.Client_message.t) : unit =
     Buffer.clear self.buf;
     P.Ser.Client_message.encode self.out msg;
-    let len = Buffer.length self.buf in
-    Printf.fprintf self.oc "b%d\n" len; (* framing *)
-    Buffer.output_buffer self.oc self.buf;
+    Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf);
     ()
 
   let close (self:t) =
     if not self.closed then (
       self.closed <- true;
-      flush self.oc;
-      close_out self.oc;
+      begin
+        let msg = P.Ser.Client_message.Client_close_trace {trace_id=self.trace_id} in
+        send_msg self msg
+      end;
+      Zmq.Socket.close self.sock;
     )
 
   (* add a new logger, connect to daemon, and return logger *)
-  let create ~trace_id ~addr ~t_id () : t =
+  let create ~trace_id ~ctx ~addr ~t_id () : t =
     let buf = Buffer.create 512 in
     let out = P.Bare_encoding.Encode.of_buffer buf in
-    let oc = connect_endpoint addr in
+    let sock = connect_endpoint ctx addr in
+
     let logger = {
-      t_id; oc; buf; out; closed=false;
+      t_id; sock;
+      buf; out;
+      trace_id;
+      closed=false;
     } in
 
     Gc.finalise (fun _ -> close logger) (Thread.self()); (* close when thread dies *)
@@ -71,19 +67,26 @@ type t = {
   per_t: Logger.t Thread_local.t;
   addr: P.Endpoint_address.t;
   trace_id: string;
+  ctx: Zmq.Context.t;
 }
 
-let close (self:t) = Thread_local.clear self.per_t
+let close (self:t) =
+  Thread_local.clear self.per_t;
+  Zmq.Context.terminate self.ctx;
+  ()
 
 let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
+  let ctx = Zmq.Context.create() in
+  Zmq.Context.set_io_threads ctx 6;
   let per_t =
     Thread_local.create
-      ~init:(fun ~t_id -> Logger.create ~addr ~trace_id ~t_id ())
+      ~init:(fun ~t_id -> Logger.create ~ctx ~addr ~trace_id ~t_id ())
       ~close:Logger.close
       ()
   in
   let self = {
     per_t;
+    ctx;
     addr;
     trace_id;
   } in
@@ -94,7 +97,11 @@ let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
 let send_msg (self:t) ~pid ~now (ev:P.Ser.Event.t): unit =
   let logger = Thread_local.get_or_create self.per_t in
   begin
-    let msg = P.Ser.Client_message.Client_emit {P.Ser.Client_emit.ev} in
+    let msg = P.Ser.Client_message.Client_emit {
+        P.Ser.Client_emit.
+        trace_id=self.trace_id;
+        ev;
+      } in
     Logger.send_msg logger msg;
   end;
 

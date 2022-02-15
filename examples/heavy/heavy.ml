@@ -68,10 +68,21 @@ let () =
     Catapult_sqlite.set_multiproc true;
   ) else if not !worker && !j>1 then (
     Catapult_sqlite.set_multiproc true;
+
+    begin match !mode with
+      | Net ->
+        if !trace_id <>"" then Catapult_client.set_trace_id !trace_id;
+        trace_id := Catapult_client.get_trace_id();
+      | Db ->
+        if !trace_id <>"" then Catapult_sqlite.set_trace_id !trace_id;
+        trace_id := Catapult_sqlite.get_trace_id()
+      | File -> ()
+    end;
+
     let bin_name = Sys.executable_name in
     for _k = 2 to !j do
       let _p = Unix.open_process_args_out bin_name
-          (Array.of_list (bin_name :: "--worker" ::
+          (Array.of_list (bin_name :: "--worker" :: "--trace-id" :: !trace_id ::
                           Array.to_list (Array.sub Sys.argv 1 (Array.length Sys.argv-1))))
       in
       ignore (_p : out_channel)

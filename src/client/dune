@@ -3,5 +3,5 @@
   (name catapult_client)
   (public_name catapult-client)
   (synopsis "Client library for the catapult daemon")
-  (libraries catapult catapult.utils unix))
+  (libraries catapult catapult.utils zmq unix))
 

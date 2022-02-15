@@ -6,6 +6,7 @@ module Arg_value = struct
     | Int64 of int64
     | String of string
     | Bool of bool
+    | Float64 of float
     | Void
     
   
@@ -16,7 +17,8 @@ module Arg_value = struct
     | 0L -> Int64 (Bare.Decode.i64 dec)
     | 1L -> String (Bare.Decode.string dec)
     | 2L -> Bool (Bare.Decode.bool dec)
-    | 3L -> Void
+    | 3L -> Float64 (Bare.Decode.f64 dec)
+    | 4L -> Void
     | _ -> invalid_arg
       (Printf.sprintf "unknown union tag Arg_value.t: %Ld" tag)
     
@@ -32,8 +34,11 @@ module Arg_value = struct
     | Bool x ->
       Bare.Encode.uint enc 2L;
       Bare.Encode.bool enc x
+    | Float64 x ->
+      Bare.Encode.uint enc 3L;
+      Bare.Encode.f64 enc x
     | Void ->
-      Bare.Encode.uint enc 3L
+      Bare.Encode.uint enc 4L
     
     
     let pp out (self:t) : unit =
@@ -44,6 +49,8 @@ module Arg_value = struct
         Format.fprintf out "(@[String@ %a@])" Bare.Pp.string x
       | Bool x ->
         Format.fprintf out "(@[Bool@ %a@])" Bare.Pp.bool x
+      | Float64 x ->
+        Format.fprintf out "(@[Float64@ %a@])" Bare.Pp.float x
       | Void ->
         Format.fprintf out "Void"
       
@@ -237,22 +244,48 @@ module Client_open_trace = struct
 
 end
 
-module Client_emit = struct
+module Client_close_trace = struct
   type t = {
-    ev: Event.t;
+    trace_id: string;
   }
   
   (** @raise Invalid_argument in case of error. *)
   let decode (dec: Bare.Decode.t) : t =
-    let ev = Event.decode dec in {ev; }
+    let trace_id = Bare.Decode.string dec in {trace_id; }
   
   let encode (enc: Bare.Encode.t) (self: t) : unit =
-    begin Event.encode enc self.ev; end
+    begin Bare.Encode.string enc self.trace_id; end
   
   let pp out (self:t) : unit =
     (fun out x ->
      begin
        Format.fprintf out "{ @[";
+       Format.fprintf out "trace_id=%a;@ " Bare.Pp.string x.trace_id;
+       Format.fprintf out "@]}";
+     end) out self
+
+end
+
+module Client_emit = struct
+  type t = {
+    trace_id: string;
+    ev: Event.t;
+  }
+  
+  (** @raise Invalid_argument in case of error. *)
+  let decode (dec: Bare.Decode.t) : t =
+    let trace_id = Bare.Decode.string dec in
+    let ev = Event.decode dec in
+    {trace_id; ev; }
+  
+  let encode (enc: Bare.Encode.t) (self: t) : unit =
+    begin Bare.Encode.string enc self.trace_id; Event.encode enc self.ev; end
+  
+  let pp out (self:t) : unit =
+    (fun out x ->
+     begin
+       Format.fprintf out "{ @[";
+       Format.fprintf out "trace_id=%a;@ " Bare.Pp.string x.trace_id;
        Format.fprintf out "ev=%a;@ " Event.pp x.ev;
        Format.fprintf out "@]}";
      end) out self
@@ -262,6 +295,7 @@ end
 module Client_message = struct
   type t =
     | Client_open_trace of Client_open_trace.t
+    | Client_close_trace of Client_close_trace.t
     | Client_emit of Client_emit.t
     
   
@@ -270,7 +304,8 @@ module Client_message = struct
     let tag = Bare.Decode.uint dec in
     match tag with
     | 0L -> Client_open_trace (Client_open_trace.decode dec)
-    | 1L -> Client_emit (Client_emit.decode dec)
+    | 1L -> Client_close_trace (Client_close_trace.decode dec)
+    | 2L -> Client_emit (Client_emit.decode dec)
     | _ -> invalid_arg
       (Printf.sprintf "unknown union tag Client_message.t: %Ld" tag)
     
@@ -280,8 +315,11 @@ module Client_message = struct
     | Client_open_trace x ->
       Bare.Encode.uint enc 0L;
       Client_open_trace.encode enc x
-    | Client_emit x ->
+    | Client_close_trace x ->
       Bare.Encode.uint enc 1L;
+      Client_close_trace.encode enc x
+    | Client_emit x ->
+      Bare.Encode.uint enc 2L;
       Client_emit.encode enc x
     
     
@@ -289,6 +327,8 @@ module Client_message = struct
       match self with
       | Client_open_trace x ->
         Format.fprintf out "(@[Client_open_trace@ %a@])" Client_open_trace.pp x
+      | Client_close_trace x ->
+        Format.fprintf out "(@[Client_close_trace@ %a@])" Client_close_trace.pp x
       | Client_emit x ->
         Format.fprintf out "(@[Client_emit@ %a@])" Client_emit.pp x
       

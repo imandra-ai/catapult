@@ -29,7 +29,7 @@ end
 
 let pid = Unix.getpid()
 
-type arg = [`Int of int | `String of string | `Bool of bool | `Null]
+type arg = [`Int of int | `String of string | `Float of float | `Bool of bool | `Null]
 
 let () =
   (* make sure Arg.t = arg *)

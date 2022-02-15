@@ -53,7 +53,7 @@ let create
       (try ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)) : int) with _ ->());
       Filename.concat dir (trace_id ^ ".db")
   in
-  let db = Db.db_open ~mutex:`FULL file in
+  let db = Db.db_open file in
   Db.busy_timeout db 3_000;
   (* TODO: is this worth it?
   Db.exec db "PRAGMA journal_mode=MEMORY;" |> check_ret_;

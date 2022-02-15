@@ -1,5 +1,5 @@
 
-type Arg_value (i64 | string | bool | void)
+type Arg_value (i64 | string | bool | f64 | void)
 
 type Arg {
   key: string
@@ -32,12 +32,20 @@ type Client_open_trace {
   trace_id: string
 }
 
+type Client_close_trace {
+  trace_id: string # the ID of this trace
+}
+
 # Emit an event. This will go into the trace specified with an
 # earlier "open trace".
 type Client_emit {
+  trace_id: string
   ev: Event
 }
 
 # Messages sent by the client.
-type Client_message (Client_open_trace | Client_emit)
-
+type Client_message
+  ( Client_open_trace
+  | Client_close_trace
+  | Client_emit
+  )

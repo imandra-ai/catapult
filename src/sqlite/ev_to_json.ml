@@ -76,6 +76,7 @@ let to_json buf (ev:P.Ser.Event.t) : string =
           begin match value with
             | P.Ser.Arg_value.Int64 i -> Out.int64 buf i
             | P.Ser.Arg_value.String s -> Out.str_val buf s
+            | P.Ser.Arg_value.Float64 f -> Out.float buf f
             | P.Ser.Arg_value.Bool s -> Out.bool buf s
             | P.Ser.Arg_value.Void -> Out.null buf
           end)
