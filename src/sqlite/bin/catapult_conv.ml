@@ -15,6 +15,15 @@ module Dir = Directories.Project_dirs(struct
     let application = "catapult"
   end)
 
+(** List databases in this directory *)
+let list_dir (d:string) : _ list =
+  let files = ref [] in
+  Array.iter (fun f ->
+      if Filename.extension f = ".db" then files := f :: !files)
+    (Sys.readdir d);
+  files := List.sort String.compare !files;
+  !files
+
 let write_json ~files ~out () =
   let oc = open_out out in
   let@ () = Fun.protect ~finally:(fun () -> close_out oc) in
@@ -32,7 +41,12 @@ let write_json ~files ~out () =
         begin match Dir.data_dir with
           | Some d ->
             let file_in_d = Filename.concat d file in
-            if Sys.file_exists file_in_d then file_in_d else fail()
+            if Sys.file_exists file_in_d then file_in_d
+            else if file = "last" then (
+              let files = Array.of_list @@ list_dir d in
+              if files = [||] then fail()
+              else Filename.concat d files.(Array.length files - 1) (* last entry *)
+            ) else fail()
           | None -> fail()
         end
       )
@@ -79,6 +93,19 @@ let conv ~files ~out () =
     write_json ~files ~out ();
   )
 
+let help =
+{|catapult-conv file+ [opt]*
+
+This converts a trace (normally, a sqlite file with .db extension) into
+a JSON file. The default output is `trace.json.gz`. This JSON file
+can be fed, for example, to chrome://tracing or https://ui.perfetto.dev/ .
+
+If multiple files are given, their event streams are merged.
+
+The special file "last" refers to the latest snapshot in the state
+directory (typically, ~/.local/share/catapult).
+|}
+
 let () =
   let out = ref "" in
   let opts = [
@@ -87,7 +114,7 @@ let () =
     "-o", Arg.Set_string out, " set output file (default 'trace.json.gz')";
   ] |> Arg.align in
   let files = ref [] in
-  Arg.parse opts (fun f -> files := f :: !files) "catapult-conv file+ [opt]*";
+  Arg.parse opts (fun f -> files := f :: !files) help;
 
   let out = if !out = "" then "trace.json.gz" else !out in
   let files = List.rev !files in
@@ -99,15 +126,11 @@ let () =
     begin match Dir.data_dir with
       | None -> failwith "please provide at least one file"
       | Some d ->
-        let files = ref [] in
-        Array.iter (fun f ->
-            if Filename.extension f = ".db" then files := f :: !files)
-          (Sys.readdir d);
-        files := List.sort String.compare !files;
+        let files = list_dir d in
         Printf.printf "no file provided.\n";
-        if !files<>[] then (
+        if files<>[] then (
           Printf.printf "daemon files:\n";
-          List.iter (Printf.printf "%s\n") !files
+          List.iter (Printf.printf "%s\n") files
         )
     end
   )
