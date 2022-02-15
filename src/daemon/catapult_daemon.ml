@@ -47,6 +47,8 @@ end = struct
     writer: P_db.Writer.t;
     last_write: float Atomic.t;
     rc: int Atomic.t;
+    mutable batch_size: int;
+    mutable batch: string list;
   }
 
   type t = {
@@ -65,8 +67,17 @@ end = struct
     let@ () = with_lock self in
     Str_tbl.length self.dbs
 
+  let flush_batch_ (db:db_conn) : unit =
+    if db.batch_size > 0 then (
+      let b = List.rev db.batch in
+      db.batch <- [];
+      db.batch_size <- 0;
+      P_db.Writer.write_string_l db.writer b;
+    )
+
   let close_ (self:t) ~trace_id (db:db_conn) : unit =
     Tr.instant "db.close" ~args:["trace_id", `String trace_id];
+    flush_batch_ db;
     P_db.Writer.close db.writer
 
   let[@inline never] open_ (self:t) ~trace_id ~rc : db_conn =
@@ -74,7 +85,9 @@ end = struct
     let writer = P_db.Writer.create ~append:true ~dir:self.dir ~trace_id () in
     let db = {
       writer; rc=Atomic.make rc;
-      last_write=Atomic.make @@ now_us() } in
+      last_write=Atomic.make @@ now_us();
+      batch=[]; batch_size=0;
+    } in
     Str_tbl.add self.dbs trace_id db;
     db
 
@@ -105,19 +118,25 @@ end = struct
   let[@inline] str_of_ev_ (self:t) (ev:event) : string =
     P_db.Ev_to_json.to_json self.buf ev
 
+  let max_batch_size = 50
+
   let write (self:t) ~trace_id (ev:event) : unit =
     let@ () = with_lock self in
     let s = str_of_ev_ self ev in
     let db = get_db_ self ~trace_id in
-    Atomic.set db.last_write (now_us ());
-    P_db.Writer.write_string db.writer s
+    db.batch <- s :: db.batch;
+    db.batch_size <- 1 + db.batch_size;
+    if db.batch_size > 50 then flush_batch_ db;
+    Atomic.set db.last_write (now_us ())
 
   let write_batch (self:t) ~trace_id (b:event list) : unit =
     let@ () = with_lock self in
     let l = List.map (str_of_ev_ self) b in
     let db = get_db_ self ~trace_id in
-    Atomic.set db.last_write (now_us ());
-    P_db.Writer.write_string_l db.writer l
+    db.batch <- List.rev_append l db.batch;
+    db.batch_size <- List.length l + db.batch_size;
+    if db.batch_size > 50 then flush_batch_ db;
+    Atomic.set db.last_write (now_us ())
 
   let close self =
     let@ () = with_lock self in
@@ -189,6 +208,7 @@ end = struct
     if not tcp then (try Sys.remove file with _ -> ());
        *)
     let sock = Zmq.Socket.create ctx Zmq.Socket.dealer in
+    Zmq.Socket.set_receive_buffer_size sock (64 * 1024 * 1024);
     let addr_str = Addr.to_string addr in
     Zmq.Socket.bind sock addr_str;
     sock

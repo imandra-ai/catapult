@@ -9,6 +9,7 @@ let connect_endpoint ctx (addr: P.Endpoint_address.t) : [`Dealer] Zmq.Socket.t =
   let addr_str = E.to_string addr in
   let sock = Zmq.Socket.create ctx Zmq.Socket.dealer in
   Zmq.Socket.connect sock addr_str;
+  Zmq.Socket.set_send_buffer_size sock (32 * 1024 * 1024);
   sock
 
 (** Thread local logger. Each logger has a connection to the
