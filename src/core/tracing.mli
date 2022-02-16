@@ -34,6 +34,9 @@ type 'a emit_fun = ?ts_us:float -> 'a emit_fun_base
     @param name the name of this event
 *)
 
+type 'a with_stack = ?stack:string list -> 'a
+(** Function that can take a stack trace *)
+
 type span_start
 (** Represents the beginning of a span, to emit compact spans *)
 
@@ -42,22 +45,31 @@ val null_span : span_start
 val enabled : unit -> bool
 (** Is tracing enabled? *)
 
-val emit : (?dur:float -> Event_type.t -> unit) emit_fun
+val emit : (?dur:float -> Event_type.t -> unit) emit_fun with_stack
 (** Emit a generic event. *)
 
 val begin_ : unit -> span_start
-val exit : (?stack:string list -> span_start -> unit)  emit_fun_base
+
+val exit : (span_start -> unit) emit_fun_base with_stack
+(** Emit a "X" event with duration computed from the given span start *)
+
 val with_ : ((unit->'a) -> 'a) emit_fun_base
 val with1 : (('a->'b) -> 'a->'b) emit_fun_base
 val with2 : (('a->'b->'c) -> 'a->'b->'c) emit_fun_base
 val with3 : (('a->'b->'c->'d) -> 'a->'b->'c->'d) emit_fun_base
 
-val begin' : unit emit_fun
-val exit': unit emit_fun
+val begin' : unit emit_fun with_stack
+(** Emit a "B" event *)
 
-val obj_new : (id:string -> unit) emit_fun
-val obj_snap : (snapshot:string -> id:string -> unit) emit_fun
-val obj_delete : (id:string -> unit) emit_fun
+val exit': unit emit_fun with_stack
+(** Emit a "E" event *)
+
+val span : (dur:float -> unit) emit_fun with_stack
+(** Emit a "X" event *)
+
+val obj_new : (id:string -> unit) emit_fun with_stack
+val obj_snap : (snapshot:string -> id:string -> unit) emit_fun with_stack
+val obj_delete : (id:string -> unit) emit_fun with_stack
 val obj_with : (id:string -> (unit->'a) -> 'a) emit_fun
 val obj_with1 : (id:string -> ('a->'b) -> 'a -> 'b) emit_fun
 
@@ -71,8 +83,7 @@ val f_begin : (id:string -> unit) emit_fun
 val f_exit : (id:string -> unit) emit_fun
 val f_step : (id:string -> unit) emit_fun
 
-val instant : unit emit_fun
-val instant_with_stack : (stack:string list -> unit) emit_fun
+val instant : unit emit_fun with_stack
 val counter : (cs:(string*int) list -> unit) emit_fun
 
 val meta_thread_name : string -> unit

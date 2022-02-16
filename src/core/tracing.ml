@@ -45,6 +45,7 @@ type 'a emit_fun_base =
   'a
 
 type 'a emit_fun = ?ts_us:float -> 'a emit_fun_base
+type 'a with_stack = ?stack:string list -> 'a
 
 (* actually emit an event via the backend *)
 let[@inline never] emit_real_
@@ -56,22 +57,16 @@ let[@inline never] emit_real_
     ~id ~pid ~cat ~tid ~ts_us ~stack ~args ~name ~ph:ev ~dur ?extra ();
   ()
 
-let[@inline] emit ?ts_us ?cat ?pid ?tid ?args name ?dur (ev:Event_type.t) : unit =
+let[@inline] emit ?stack ?ts_us ?cat ?pid ?tid ?args name ?dur (ev:Event_type.t) : unit =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b ?ts_us ?cat ?pid ?tid ?args ?dur name ev
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args ?dur name ev
 
-let[@inline] instant ?ts_us ?cat ?pid ?tid ?args name =
+let[@inline] instant ?stack ?ts_us ?cat ?pid ?tid ?args name =
   match !out_ with
   | None -> ()
   | Some b ->
-    emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name I
-
-let[@inline] instant_with_stack ?ts_us ?cat ?pid ?tid ?args name ~stack =
-  match !out_ with
-  | None -> ()
-  | Some b ->
-    emit_real_ b  ?ts_us ?cat ?pid ?tid ?args ~stack name I
+    emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args name I
 
 let[@inline] counter ?ts_us ?cat ?pid ?tid ?(args=[]) name ~cs =
   match !out_ with
@@ -96,18 +91,18 @@ let[@inline] begin_ () : span_start =
   if !out_ == None then null_span
   else now_()
 
-let exit_with_ b ?cat ?pid ?tid ?args ?stack name start : unit =
+let exit_with_ b ?stack ?cat ?pid ?tid ?args name start : unit =
   let now = now_ () in
   let dur = now -. start in
   emit_real_
-    b  ?cat ?pid ?tid ?args name ?stack
+    b ?cat ?pid ?tid ?args name ?stack
     ~ts_us:start ~dur X
 
-let[@inline] exit ?cat ?pid ?tid ?args name ?stack (sp:span_start) =
+let[@inline] exit ?stack ?cat ?pid ?tid ?args name (sp:span_start) =
   if sp == null_span then ()
   else match !out_ with
   | None -> ()
-  | Some b -> exit_with_ b ?cat ?pid ?tid ?args name ?stack sp
+  | Some b -> exit_with_ b ?stack ?cat ?pid ?tid ?args name sp
 
 let[@inline] with1 ?cat ?pid ?tid ?args name f x =
   match !out_ with
@@ -131,31 +126,36 @@ let[@inline] with2 ?cat ?pid ?tid ?args name f x y =
 let[@inline] with3 ?cat ?pid ?tid ?args name f x y z =
   with1  ?cat ?pid ?tid ?args name (fun () -> f x y z) ()
 
-let[@inline] begin' ?ts_us ?cat ?pid ?tid ?args name =
+let[@inline] begin' ?stack ?ts_us ?cat ?pid ?tid ?args name =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name B
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args name B
 
-let[@inline] exit' ?ts_us ?cat ?pid ?tid ?args name =
+let[@inline] exit' ?stack ?ts_us ?cat ?pid ?tid ?args name =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name E
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args name E
 
-let[@inline] obj_new ?ts_us ?cat ?pid ?tid ?args name ~id =
+let[@inline] span ?stack ?ts_us ?cat ?pid ?tid ?args name ~dur =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name ~id N
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args ~dur name X
 
-let[@inline] obj_delete ?ts_us ?cat ?pid ?tid ?args name ~id =
+let[@inline] obj_new ?stack ?ts_us ?cat ?pid ?tid ?args name ~id =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name ~id D
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args name ~id N
 
-let[@inline] obj_snap ?ts_us ?cat ?pid ?tid ?(args=[]) name ~snapshot ~id =
+let[@inline] obj_delete ?stack ?ts_us ?cat ?pid ?tid ?args name ~id =
+  match !out_ with
+  | None -> ()
+  | Some b -> emit_real_ b ?stack ?ts_us ?cat ?pid ?tid ?args name ~id D
+
+let[@inline] obj_snap ?stack ?ts_us ?cat ?pid ?tid ?(args=[]) name ~snapshot ~id =
   match !out_ with
   | None -> ()
   | Some b ->
-    emit_real_ b  ?ts_us ?cat ?pid ?tid name
+    emit_real_ b ?stack ?ts_us ?cat ?pid ?tid name
       ~args:(("snapshot", `String snapshot)::args) ~id O
 
 let with1_gen_ ?ts_us ?cat ?pid ?tid ?args ?id name ev1 ev2 f x =
