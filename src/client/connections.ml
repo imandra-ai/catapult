@@ -107,5 +107,5 @@ let send_msg (self:t) ~pid ~now (ev:P.Ser.Event.t): unit =
   end;
 
   (* maybe emit GC stats as well *)
-  Gc_stats.maybe_emit ~now:ev.ts_sec ~pid:(Int64.to_int ev.pid) ();
+  Gc_stats.maybe_emit ~now:ev.ts_us ~pid:(Int64.to_int ev.pid) ();
   ()

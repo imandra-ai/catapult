@@ -155,12 +155,12 @@ module Backend() : P.BACKEND = struct
     | Some x -> f x
 
   let emit
-      ~id ~name ~ph ~tid ~pid ~cat ~ts_sec ~args ~stack ~dur ?extra () : unit =
+      ~id ~name ~ph ~tid ~pid ~cat ~ts_us ~args ~stack ~dur ?extra () : unit =
     (* delegate to {!State} the task of allocating a buffer, and producing
        output. We just provide a callback that, given the buffer,
        writes the JSON into it. *)
     let logger = State.get_logger state ~t_id:tid in
-    State.send_msg logger ~pid ~now:ts_sec @@ fun buf ->
+    State.send_msg logger ~pid ~now:ts_us @@ fun buf ->
 
     Out.char buf '{';
 
@@ -173,7 +173,7 @@ module Backend() : P.BACKEND = struct
     field buf {|"tid"|} any_val (string_of_int tid);
     field_sep buf;
 
-    field buf {|"ts"|} Out.float ts_sec;
+    field buf {|"ts"|} Out.float ts_us;
     field_sep buf;
 
     opt_iter dur (fun dur ->

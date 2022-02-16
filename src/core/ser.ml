@@ -123,7 +123,7 @@ module Event = struct
     pid: int64;
     tid: int64;
     cat: string array option;
-    ts_sec: float;
+    ts_us: float;
     args: Arg.t array option;
     stack: string array option;
     dur: float option;
@@ -143,7 +143,7 @@ module Event = struct
          (let len = Bare.Decode.uint dec in
           if len>Int64.of_int Sys.max_array_length then invalid_arg "array too big";
           Array.init (Int64.to_int len) (fun _ -> Bare.Decode.string dec))) dec in
-    let ts_sec = Bare.Decode.f64 dec in
+    let ts_us = Bare.Decode.f64 dec in
     let args =
       Bare.Decode.optional
         (fun dec ->
@@ -163,7 +163,7 @@ module Event = struct
          (let len = Bare.Decode.uint dec in
           if len>Int64.of_int Sys.max_array_length then invalid_arg "array too big";
           Array.init (Int64.to_int len) (fun _ -> Extra.decode dec))) dec in
-    {id; name; ph; pid; tid; cat; ts_sec; args; stack; dur; extra; }
+    {id; name; ph; pid; tid; cat; ts_us; args; stack; dur; extra; }
   
   let encode (enc: Bare.Encode.t) (self: t) : unit =
     begin
@@ -178,7 +178,7 @@ module Event = struct
          (let arr = xopt in
           Bare.Encode.uint enc (Int64.of_int (Array.length arr));
           Array.iter (fun xi -> Bare.Encode.string enc xi) arr)) enc self.cat;
-      Bare.Encode.f64 enc self.ts_sec;
+      Bare.Encode.f64 enc self.ts_us;
       Bare.Encode.optional
         (fun enc xopt ->
          (let arr = xopt in
@@ -209,7 +209,7 @@ module Event = struct
        Format.fprintf out "tid=%a;@ " Bare.Pp.int64 x.tid;
        Format.fprintf out "cat=%a;@ "
          (Bare.Pp.option (Bare.Pp.array Bare.Pp.string)) x.cat;
-       Format.fprintf out "ts_sec=%a;@ " Bare.Pp.float x.ts_sec;
+       Format.fprintf out "ts_us=%a;@ " Bare.Pp.float x.ts_us;
        Format.fprintf out "args=%a;@ "
          (Bare.Pp.option (Bare.Pp.array Arg.pp)) x.args;
        Format.fprintf out "stack=%a;@ "

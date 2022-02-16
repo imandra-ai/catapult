@@ -19,7 +19,7 @@ type Event {
   pid: int
   tid: int
   cat: optional<[]string>
-  ts_sec: f64
+  ts_us: f64
   args: optional<[]Arg>
   stack: optional<[]string>
   dur: optional<f64>

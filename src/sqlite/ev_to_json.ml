@@ -20,7 +20,7 @@ let[@inline] opt_iter o f = match o with
 let to_json buf (ev:P.Ser.Event.t) : string =
   let
     { P.Ser.Event.
-      id; name; ph; pid; tid; cat; ts_sec; args; stack; dur; extra } = ev
+      id; name; ph; pid; tid; cat; ts_us; args; stack; dur; extra } = ev
   in
 
   Buffer.clear buf;
@@ -35,7 +35,7 @@ let to_json buf (ev:P.Ser.Event.t) : string =
   field buf {|"tid"|} Out.int64 tid;
   field_sep buf;
 
-  field buf {|"ts"|} Out.float ts_sec;
+  field buf {|"ts"|} Out.float ts_us;
   field_sep buf;
 
   opt_iter dur (fun dur ->

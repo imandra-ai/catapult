@@ -77,7 +77,7 @@ module Make(A : ARG) : P.BACKEND = struct
     | Some x -> f x
 
   let emit
-      ~id ~name ~ph ~tid ~pid ~cat ~ts_sec ~args ~stack ~dur ?extra () : unit =
+      ~id ~name ~ph ~tid ~pid ~cat ~ts_us ~args ~stack ~dur ?extra () : unit =
 
     (* access local buffer to write and add to batch *)
     let lbuf = Thread_local.get_or_create buf in
@@ -97,7 +97,7 @@ module Make(A : ARG) : P.BACKEND = struct
       field buf {|"tid"|} any_val (string_of_int tid);
       field_sep buf;
 
-      field buf {|"ts"|} Out.float ts_sec;
+      field buf {|"ts"|} Out.float ts_us;
       field_sep buf;
 
       opt_iter dur (fun dur ->
@@ -155,8 +155,8 @@ module Make(A : ARG) : P.BACKEND = struct
     lbuf.n_evs <- 1 + lbuf.n_evs;
 
     (* see if we need to flush batch or emit GC counters *)
-    check_batch lbuf ~now:ts_sec;
-    Gc_stats.maybe_emit ~now:ts_sec ~pid ();
+    check_batch lbuf ~now:ts_us;
+    Gc_stats.maybe_emit ~now:ts_us ~pid ();
 
     ()
 end

@@ -17,7 +17,7 @@ module type S = sig
     tid:int ->
     pid:int ->
     cat:string list option ->
-    ts_sec:float ->
+    ts_us:float ->
     args:(string*Arg.t) list option ->
     stack:string list option ->
     dur:float option ->

@@ -30,7 +30,7 @@ module Make(A : ARG) : P.BACKEND = struct
     {Arg.key; value}
 
   let emit
-      ~id ~name ~ph ~tid ~pid ~cat ~ts_sec ~args ~stack ~dur ?extra () : unit =
+      ~id ~name ~ph ~tid ~pid ~cat ~ts_us ~args ~stack ~dur ?extra () : unit =
     let ev =
       let open P.Ser in
       let tid = Int64.of_int tid in
@@ -45,10 +45,10 @@ module Make(A : ARG) : P.BACKEND = struct
       in
       let args = opt_map_ (fun l -> l |> Array.of_list |> Array.map conv_arg) args in
       {Event.
-        id; name; ph; tid; pid; cat; ts_sec; args; stack; dur; extra;
+        id; name; ph; tid; pid; cat; ts_us; args; stack; dur; extra;
       }
     in
-    Connections.send_msg conn ~pid ~now:ts_sec ev
+    Connections.send_msg conn ~pid ~now:ts_us ev
 
   let tick() =
     let now = P.Clock.now_us() in
