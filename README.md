@@ -14,6 +14,8 @@ The traces are `.json` files (or compressed `.json.gz`). They can be viewed in:
 The core library is `catapult`. It's a small set of probes that can be
 inserted in your code, by hand (with meaningful messages if needed).
 
+### Example: "basic"
+
 A very stupid example (in `examples/basic/basic.ml`), is:
 
 ```ocaml
@@ -49,6 +51,41 @@ a minimal overhead).
 Once opened in chrome://tracing, the trace looks like this:
 ![viewer screenshot](media/viewer1.png)
 
+### Example: "heavy"
+
+A more heavy example (used to benchmark a bit the tracing), is in `examples/heavy`.
+
+In a terminal, run the daemon (if it's not already running):
+
+``` 
+$ ./daemon.sh
+```
+
+Then in another terminal:
+
+```
+$ ./heavy.sh -n=1 --mode=net -j 2
+use net client tcp://127.0.0.1:6981
+run 1 iterations
+iteration 1
+use net client tcp://127.0.0.1:6981
+run 1 iterations
+iteration 1
+
+# list traces
+$ catapult-conv
+…
+catapult-2022-2-16-16-36-18-pid-3229175.dbo
+
+# convert last trace into a json.gz file
+$ catapult-conv catapult-2022-2-16-16-36-18-pid-3229175.db
+
+$ ls -lh trace.json.gz 
+-rw-r--r-- 1 simon simon 374K Feb 16 11:38 trace.json.gz
+```
+
+Opened in chrome, the trace looks like that (focusing on a "step" event):
+![viewer screenshot](media/viewer2.png)
 
 ## License
 
