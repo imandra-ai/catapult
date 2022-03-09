@@ -10,7 +10,7 @@ depends: [
   "dune" {>= "2.0"}
   "catapult" {= version}
   "odoc" {with-doc}
-  "zmq"
+  "zmq" {>= "5.0"}
   "ocaml" {>= "4.08"}
 ]
 build: [
