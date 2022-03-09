@@ -248,7 +248,7 @@ end = struct
     let@ () = Tr.with_ "listen.loop" in
     Sys.catch_break true;
 
-    let poll = Zmq.Poll.mask_of [| Zmq.Poll.mask_in self.sock |] in
+    let poll = Zmq.Poll.(mask_of [| self.sock, In |]) in
     let timeout = 200 in (* milliseconds *)
 
     while not (Atomic.get self.stop) do
