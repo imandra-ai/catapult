@@ -5,6 +5,7 @@
 (authors "simon@imandra.ai")
 (maintainers "simon@imandra.ai")
 (source (github AestheticIntegration/catapult.git))
+(version 0.1)
 (name catapult)
 
 (package
@@ -30,7 +31,7 @@
   (name catapult-sqlite)
   (synopsis "Sqlite-based backend for Catapult tracing")
   (depends
-    sqlite3
+    (sqlite3 (>= "5.0"))
     directories
     (catapult (= :version))
     (odoc :with-doc)
@@ -53,4 +54,4 @@
     (catapult (= :version))
     (catapult-sqlite (= :version))
     (zmq (>= "5.0"))
-    logs))
+    (logs (>= "0.7"))))
