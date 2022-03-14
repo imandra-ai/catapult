@@ -8,7 +8,7 @@ license: "MIT"
 homepage: "https://github.com/AestheticIntegration/catapult"
 bug-reports: "https://github.com/AestheticIntegration/catapult.git/issues"
 depends: [
-  "dune" {>= "2.5"}
+  "dune" {>= "2.0"}
   "catapult" {= version}
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}

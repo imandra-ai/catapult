@@ -4,6 +4,7 @@
   (modules_without_implementation backend impl arg)
   (libraries threads
              (select clock.ml from
+                     (ptime ptime.clock.os -> clock.ptime.ml)
                      (mtime mtime.clock.os -> clock.mtime.ml)
                      (-> clock.unix.ml)))
   (public_name catapult)
