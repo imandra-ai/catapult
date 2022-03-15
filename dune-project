@@ -4,7 +4,7 @@
 (homepage "https://github.com/AestheticIntegration/catapult")
 (authors "simon@imandra.ai")
 (maintainers "simon@imandra.ai")
-(source (github AestheticIntegration/catapult.git))
+(source (github AestheticIntegration/catapult))
 (version 0.1)
 (name catapult)
 

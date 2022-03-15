@@ -6,7 +6,7 @@ maintainer: ["simon@imandra.ai"]
 authors: ["simon@imandra.ai"]
 license: "MIT"
 homepage: "https://github.com/AestheticIntegration/catapult"
-bug-reports: "https://github.com/AestheticIntegration/catapult.git/issues"
+bug-reports: "https://github.com/AestheticIntegration/catapult/issues"
 depends: [
   "dune" {>= "2.0"}
   "base-threads"
@@ -29,4 +29,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/AestheticIntegration/catapult.git.git"
+dev-repo: "git+https://github.com/AestheticIntegration/catapult.git"
