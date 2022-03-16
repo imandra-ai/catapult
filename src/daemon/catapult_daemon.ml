@@ -330,7 +330,8 @@ let () =
   Arg.parse opts (fun _ ->raise (Arg.Help "no such option")) "catapult tracing daemon";
 
   setup_logs ~debug:!debug ();
-  Log.info (fun k->k "directory: %s" !dir);
+  Log.info (fun k->k "daemon: listen on: %s, store traces in directory: %s"
+               (P.Endpoint_address.to_string !addr) !dir);
 
   let writer = Writer.create ~dir:!dir () in
   let server = Server.create ~writer ~addr:!addr () in

@@ -36,6 +36,7 @@ let rec fake_trace depth =
   )
 
 let () =
+  (* this just logs into a file. It's not thread safe nor multiprocess-safe. *)
   Catapult_file.with_setup @@ fun () ->
   let n = try int_of_string (Sys.getenv "N") with _ -> 10 in
   Printf.printf "run %d iterations\n%!" n;
