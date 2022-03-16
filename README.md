@@ -89,6 +89,20 @@ $ ls -lh trace.json.gz
 Opened in chrome, the trace looks like that (focusing on a "step" event):
 ![viewer screenshot](media/viewer2.png)
 
+## Coverage
+
+- [x] duration events
+- [x] async events
+- [x] flow events
+- [x] instants
+- [x] metadata
+- [x] counters
+- [x] object events
+- [ ] contexts
+- [ ] memory dumps
+- [ ] mark events
+- [ ] clock synchro
+
 ## License
 
 MIT
