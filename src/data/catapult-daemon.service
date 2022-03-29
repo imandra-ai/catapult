@@ -1,0 +1,15 @@
+[Unit]
+Description=Catapult daemon (receives and stores profiling traces)
+
+[Socket]
+ListenStream=6981
+Accept=no
+
+[Service]
+ExecStart=catapult-daemon --addr=tcp://127.0.0.1:6981
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+

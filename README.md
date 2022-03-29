@@ -15,6 +15,27 @@ The traces are `.json` files (or compressed `.json.gz`). They can be viewed in:
 The core library is `catapult`. It's a small set of probes that can be
 inserted in your code, by hand (with meaningful messages if needed).
 
+## Systemd
+
+An example systemd service file can be found in `src/data/catapult-daemon.service`.
+
+```systemd
+[Unit]
+Description=Catapult daemon (receives and stores profiling traces)
+
+[Socket]
+ListenStream=6981
+Accept=no
+
+[Service]
+ExecStart=catapult-daemon --addr=tcp://127.0.0.1:6981
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+```
+
 ### Example: "basic"
 
 A very stupid example (in `examples/basic/basic.ml`), is:
