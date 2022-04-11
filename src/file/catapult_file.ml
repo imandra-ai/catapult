@@ -167,7 +167,7 @@ module Backend() : P.BACKEND = struct
     field buf {|"name"|} Out.str_val name;
     field_sep buf;
 
-    field buf {|"ph"|} Out.char (P.Event_type.to_char ph);
+    field buf {|"ph"|} Out.char_val (P.Event_type.to_char ph);
     field_sep buf;
 
     field buf {|"tid"|} any_val (string_of_int tid);
