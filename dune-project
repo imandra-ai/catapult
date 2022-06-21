@@ -5,7 +5,7 @@
 (authors "simon@imandra.ai")
 (maintainers "simon@imandra.ai")
 (source (github AestheticIntegration/catapult))
-(version 0.1)
+(version 0.1.1)
 (name catapult)
 
 (package
