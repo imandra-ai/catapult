@@ -37,15 +37,16 @@ let () =
   ()
 
 type 'a emit_fun_base =
-  ?cat:string list ->
   ?pid:int ->
   ?tid:int ->
   ?args:(string*arg) list ->
   string ->
   'a
 
-type 'a emit_fun = ?ts_us:float -> 'a emit_fun_base
+type 'a with_cat = ?cat:string list -> 'a
+type 'a with_ts_us = ?ts_us:float -> 'a
 type 'a with_stack = ?stack:string list -> 'a
+type 'a emit_fun = 'a emit_fun_base with_cat with_ts_us
 
 (* actually emit an event via the backend *)
 let[@inline never] emit_real_
@@ -179,26 +180,26 @@ let[@inline] obj_with ?ts_us ?cat ?pid ?tid ?args name ~id f =
   obj_with1  ?ts_us ?cat ?pid ?tid ?args name f () ~id
 
 let[@inline] a_begin
-     ?ts_us ?cat ?pid ?tid ?args name ~id =
+     ?ts_us ?pid ?tid ?args name ~cat ~id =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name ~id A_b
+  | Some b -> emit_real_ b  ?ts_us ~cat ?pid ?tid ?args name ~id A_b
 
-let[@inline] a_exit ?ts_us ?cat ?pid ?tid ?args name ~id =
+let[@inline] a_exit ?ts_us ?pid ?tid ?args name ~cat ~id =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name ~id A_e
+  | Some b -> emit_real_ b  ?ts_us ~cat ?pid ?tid ?args name ~id A_e
 
-let[@inline] a_snap ?ts_us ?cat ?pid ?tid ?args name ~id =
+let[@inline] a_snap ?ts_us ?pid ?tid ?args name ~cat ~id =
   match !out_ with
   | None -> ()
-  | Some b -> emit_real_ b  ?ts_us ?cat ?pid ?tid ?args name A_n ~id
+  | Some b -> emit_real_ b  ?ts_us ~cat ?pid ?tid ?args name A_n ~id
 
-let[@inline] a_with1 ?ts_us ?cat ?pid ?tid ?args name ~id f x =
-  with1_gen_  ?ts_us ?cat ?pid ?tid ?args name ~id A_b A_e f x
+let[@inline] a_with1 ?ts_us ?pid ?tid ?args name ~cat ~id f x =
+  with1_gen_  ?ts_us ~cat ?pid ?tid ?args name ~id A_b A_e f x
 
-let[@inline] a_with ?ts_us ?cat ?pid ?tid ?args name ~id f =
-  a_with1  ?ts_us ?cat ?pid ?tid ?args name f () ~id
+let[@inline] a_with ?ts_us ?pid ?tid ?args name ~cat ~id f =
+  a_with1  ?ts_us ~cat ?pid ?tid ?args name f () ~id
 
 let[@inline] f_begin ?ts_us ?cat ?pid ?tid ?args name ~id =
   match !out_ with

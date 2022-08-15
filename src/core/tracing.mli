@@ -13,7 +13,6 @@ type backend = (module Backend.S)
 type arg = [`Int of int | `String of string | `Float of float | `Bool of bool | `Null]
 
 type 'a emit_fun_base =
-  ?cat:string list ->
   ?pid:int ->
   ?tid:int ->
   ?args:(string*arg) list ->
@@ -22,7 +21,13 @@ type 'a emit_fun_base =
 (** Emitter function, without timestamp. See {!emit_fun}
     for more details. *)
 
-type 'a emit_fun = ?ts_us:float -> 'a emit_fun_base
+type 'a with_cat = ?cat:string list -> 'a
+type 'a with_ts_us = ?ts_us:float -> 'a
+
+type 'a with_stack = ?stack:string list -> 'a
+(** Function that can take a stack trace *)
+
+type 'a emit_fun = 'a emit_fun_base with_cat with_ts_us
 (** An emitter function. The positional string argument is the name.
 
     @param cat list of categories for filtering the event
@@ -33,9 +38,6 @@ type 'a emit_fun = ?ts_us:float -> 'a emit_fun_base
 
     @param name the name of this event
 *)
-
-type 'a with_stack = ?stack:string list -> 'a
-(** Function that can take a stack trace *)
 
 type span_start
 (** Represents the beginning of a span, to emit compact spans *)
@@ -50,13 +52,13 @@ val emit : (?dur:float -> Event_type.t -> unit) emit_fun with_stack
 
 val begin_ : unit -> span_start
 
-val exit : (span_start -> unit) emit_fun_base with_stack
+val exit : (span_start -> unit) emit_fun_base with_cat with_stack
 (** Emit a "X" event with duration computed from the given span start *)
 
-val with_ : ((unit->'a) -> 'a) emit_fun_base
-val with1 : (('a->'b) -> 'a->'b) emit_fun_base
-val with2 : (('a->'b->'c) -> 'a->'b->'c) emit_fun_base
-val with3 : (('a->'b->'c->'d) -> 'a->'b->'c->'d) emit_fun_base
+val with_ : ((unit->'a) -> 'a) emit_fun_base with_cat
+val with1 : (('a->'b) -> 'a->'b) emit_fun_base with_cat
+val with2 : (('a->'b->'c) -> 'a->'b->'c) emit_fun_base with_cat
+val with3 : (('a->'b->'c->'d) -> 'a->'b->'c->'d) emit_fun_base with_cat
 
 val begin' : unit emit_fun with_stack
 (** Emit a "B" event *)
@@ -73,11 +75,11 @@ val obj_delete : (id:string -> unit) emit_fun with_stack
 val obj_with : (id:string -> (unit->'a) -> 'a) emit_fun
 val obj_with1 : (id:string -> ('a->'b) -> 'a -> 'b) emit_fun
 
-val a_begin : (id:string -> unit) emit_fun
-val a_exit : (id:string -> unit) emit_fun
-val a_snap : (id:string -> unit) emit_fun
-val a_with : (id:string -> (unit->'a) -> 'a) emit_fun
-val a_with1 : (id:string -> ('a->'b) -> 'a -> 'b) emit_fun
+val a_begin : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
+val a_exit : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
+val a_snap : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
+val a_with : (cat:string list -> id:string -> (unit->'a) -> 'a) emit_fun_base with_ts_us
+val a_with1 : (cat:string list -> id:string -> ('a->'b) -> 'a -> 'b) emit_fun_base with_ts_us
 
 val f_begin : (id:string -> unit) emit_fun
 val f_exit : (id:string -> unit) emit_fun
