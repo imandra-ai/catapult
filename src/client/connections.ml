@@ -53,7 +53,7 @@ module Logger = struct
       closed=false;
     } in
 
-    Gc.finalise (fun _ -> close logger) (Thread.self()); (* close when thread dies *)
+    Gc.finalise (fun _ -> close logger) logger;
 
     (* send initial message *)
     send_msg logger (
@@ -72,6 +72,7 @@ type t = {
 }
 
 let close (self:t) =
+  Thread_local.iter self.per_t ~f:Logger.close;
   Thread_local.clear self.per_t;
   Zmq.Context.terminate self.ctx;
   ()
