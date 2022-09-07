@@ -69,13 +69,16 @@ type t = {
   addr: P.Endpoint_address.t;
   trace_id: string;
   ctx: Zmq.Context.t;
+  mutable closed: bool;
 }
 
 let close (self:t) =
-  Thread_local.iter self.per_t ~f:Logger.close;
-  Thread_local.clear self.per_t;
-  Zmq.Context.terminate self.ctx;
-  ()
+  if not self.closed then (
+    self.closed <- true;
+    Thread_local.iter self.per_t ~f:Logger.close;
+    Thread_local.clear self.per_t;
+    Zmq.Context.terminate self.ctx;
+  )
 
 let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
   let ctx = Zmq.Context.create() in
@@ -91,6 +94,7 @@ let create ~(addr: P.Endpoint_address.t) ~trace_id () : t =
     ctx;
     addr;
     trace_id;
+    closed=false;
   } in
   Gc.finalise close self;
   self
