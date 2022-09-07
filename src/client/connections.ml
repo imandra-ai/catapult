@@ -69,9 +69,13 @@ type t = {
 let close (self : t) =
   if not self.closed then (
     self.closed <- true;
-    Thread_local.iter self.per_t ~f:Logger.close;
-    Thread_local.clear self.per_t;
-    Zmq.Context.terminate self.ctx
+    try
+      Thread_local.iter self.per_t ~f:Logger.close;
+      Thread_local.clear self.per_t;
+      Zmq.Context.terminate self.ctx
+    with e ->
+      Printf.eprintf "catapult: error during exit: %s\n%!"
+        (Printexc.to_string e)
   )
 
 let create ~(addr : P.Endpoint_address.t) ~trace_id () : t =
