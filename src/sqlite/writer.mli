@@ -1,14 +1,15 @@
-
 module P = Catapult
+
 type t
 
 val create :
-  ?sync:[`OFF | `NORMAL | `FULL] ->
+  ?sync:[ `OFF | `NORMAL | `FULL ] ->
   ?append:bool ->
   ?file:string ->
   trace_id:string ->
   dir:string ->
-  unit -> t
+  unit ->
+  t
 (** Open writer into a database file.
     @param append if true, append to existing records (default false)
     @param file if provided, path to the file
@@ -30,4 +31,3 @@ val write_string_l : t -> string list -> unit
 val write_string : t -> string -> unit
 (** Send a json encoded event.
     Thread safe. *)
-

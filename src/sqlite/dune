@@ -1,6 +1,4 @@
-
-
 (library
-  (name catapult_sqlite)
-  (public_name catapult-sqlite)
-  (libraries catapult catapult.utils sqlite3 directories))
+ (name catapult_sqlite)
+ (public_name catapult-sqlite)
+ (libraries catapult catapult.utils sqlite3 directories))

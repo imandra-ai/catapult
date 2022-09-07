@@ -1,4 +1,3 @@
-
 (** Tracing backend.
 
     The backend is responsible for turning a call to some function
@@ -18,11 +17,12 @@ module type S = sig
     pid:int ->
     cat:string list option ->
     ts_us:float ->
-    args:(string*Arg.t) list option ->
+    args:(string * Arg.t) list option ->
     stack:string list option ->
     dur:float option ->
-    ?extra:(string*string) list ->
-    unit -> unit
+    ?extra:(string * string) list ->
+    unit ->
+    unit
   (** Emit an event. *)
 
   val tick : unit -> unit
@@ -32,4 +32,3 @@ module type S = sig
   val teardown : unit -> unit
   (** Tear down backend once the program is shutting down. *)
 end
-

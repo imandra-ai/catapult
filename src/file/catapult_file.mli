@@ -1,4 +1,3 @@
-
 (** Logs to a file, if activated.
 
     Profiling is enabled if {!setup} is called, and if
@@ -7,7 +6,6 @@
     The trace is emitted in the file "trace.json" in the directory
     where the program is launched.
 *)
-
 
 include Catapult.IMPL
 

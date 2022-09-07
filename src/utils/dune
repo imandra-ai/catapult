@@ -1,5 +1,4 @@
-
 (library
-  (name catapult_utils)
-  (public_name catapult.utils)
-  (libraries catapult))
+ (name catapult_utils)
+ (public_name catapult.utils)
+ (libraries catapult))

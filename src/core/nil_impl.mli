@@ -1,4 +1,3 @@
-
 (** Nil implementation.
 
     This does not setup any backend. It can be useful for conditionally

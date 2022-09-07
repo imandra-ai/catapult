@@ -1,5 +1,3 @@
-
-
 (** Catapult-based tracing.
 
     A nice profiling format based on json, useful for visualizing what goes on.
@@ -26,11 +24,12 @@ module Tracing = Tracing
 module Nil_impl = Nil_impl
 module Control = Tracing.Control
 module Endpoint_address = Endpoint_address
-
 module Ser = Ser
 
 (**/**)
+
 module Atomic_shim_ = Atomic_shim_
 module Bare_encoding = Bare_encoding
 module Clock = Clock
+
 (**/**)

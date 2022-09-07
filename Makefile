@@ -9,6 +9,9 @@ test:
 clean:
 	@dune clean
 
+fmt:
+	@dune build @fmt --display=quiet --auto-promote
+
 WATCH ?= @all
 watch:
 	@dune build $(WATCH) -w $(OPTS)

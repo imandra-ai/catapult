@@ -1,4 +1,3 @@
-
 (** Profiling probes.
 
     This is the main API. The user can insert probes into their code, and
@@ -10,14 +9,11 @@
 type backend = (module Backend.S)
 
 (* NOTE: this is equal to {!Arg.t} *)
-type arg = [`Int of int | `String of string | `Float of float | `Bool of bool | `Null]
+type arg =
+  [ `Int of int | `String of string | `Float of float | `Bool of bool | `Null ]
 
 type 'a emit_fun_base =
-  ?pid:int ->
-  ?tid:int ->
-  ?args:(string*arg) list ->
-  string ->
-  'a
+  ?pid:int -> ?tid:int -> ?args:(string * arg) list -> string -> 'a
 (** Emitter function, without timestamp. See {!emit_fun}
     for more details. *)
 
@@ -55,15 +51,17 @@ val begin_ : unit -> span_start
 val exit : (span_start -> unit) emit_fun_base with_cat with_stack
 (** Emit a "X" event with duration computed from the given span start *)
 
-val with_ : ((unit->'a) -> 'a) emit_fun_base with_cat
-val with1 : (('a->'b) -> 'a->'b) emit_fun_base with_cat
-val with2 : (('a->'b->'c) -> 'a->'b->'c) emit_fun_base with_cat
-val with3 : (('a->'b->'c->'d) -> 'a->'b->'c->'d) emit_fun_base with_cat
+val with_ : ((unit -> 'a) -> 'a) emit_fun_base with_cat
+val with1 : (('a -> 'b) -> 'a -> 'b) emit_fun_base with_cat
+val with2 : (('a -> 'b -> 'c) -> 'a -> 'b -> 'c) emit_fun_base with_cat
+
+val with3 :
+  (('a -> 'b -> 'c -> 'd) -> 'a -> 'b -> 'c -> 'd) emit_fun_base with_cat
 
 val begin' : unit emit_fun with_stack
 (** Emit a "B" event *)
 
-val exit': unit emit_fun with_stack
+val exit' : unit emit_fun with_stack
 (** Emit a "E" event *)
 
 val span : (dur:float -> unit) emit_fun with_stack
@@ -72,22 +70,24 @@ val span : (dur:float -> unit) emit_fun with_stack
 val obj_new : (id:string -> unit) emit_fun with_stack
 val obj_snap : (snapshot:string -> id:string -> unit) emit_fun with_stack
 val obj_delete : (id:string -> unit) emit_fun with_stack
-val obj_with : (id:string -> (unit->'a) -> 'a) emit_fun
-val obj_with1 : (id:string -> ('a->'b) -> 'a -> 'b) emit_fun
-
+val obj_with : (id:string -> (unit -> 'a) -> 'a) emit_fun
+val obj_with1 : (id:string -> ('a -> 'b) -> 'a -> 'b) emit_fun
 val a_begin : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
 val a_exit : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
 val a_snap : (cat:string list -> id:string -> unit) emit_fun_base with_ts_us
-val a_with : (cat:string list -> id:string -> (unit->'a) -> 'a) emit_fun_base with_ts_us
-val a_with1 : (cat:string list -> id:string -> ('a->'b) -> 'a -> 'b) emit_fun_base with_ts_us
+
+val a_with :
+  (cat:string list -> id:string -> (unit -> 'a) -> 'a) emit_fun_base with_ts_us
+
+val a_with1 :
+  (cat:string list -> id:string -> ('a -> 'b) -> 'a -> 'b) emit_fun_base
+  with_ts_us
 
 val f_begin : (id:string -> unit) emit_fun
 val f_exit : (id:string -> unit) emit_fun
 val f_step : (id:string -> unit) emit_fun
-
 val instant : unit emit_fun with_stack
-val counter : (cs:(string*int) list -> unit) emit_fun
-
+val counter : (cs:(string * int) list -> unit) emit_fun
 val meta_thread_name : string -> unit
 val meta_process_name : string -> unit
 
@@ -96,13 +96,13 @@ val tick : unit -> unit
     called regularly to ensure background work is done. *)
 
 module Syntax : sig
-  val (let@) : ('a -> 'b) -> 'a -> 'b
+  val ( let@ ) : ('a -> 'b) -> 'a -> 'b
 end
+
 include module type of Syntax
 
 (** Controls the current backend. *)
 module Control : sig
   val setup : backend option -> unit
-
   val teardown : unit -> unit
 end

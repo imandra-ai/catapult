@@ -1,4 +1,3 @@
-
 (** Backend that writes directly to a Sqlite database.
 
     The database path is either directly provided with "TRACE_DB"
@@ -11,13 +10,12 @@
 
 include Catapult.IMPL
 
-val set_sqlite_sync : [`OFF | `NORMAL | `FULL] -> unit
+val set_sqlite_sync : [ `OFF | `NORMAL | `FULL ] -> unit
 (** Set level of crash safety for sqlite.
     See {!Writer.create} for more details. *)
 
 val enable : unit -> unit
 val enabled : unit -> bool
-
 val set_trace_id : string -> unit
 val get_trace_id : unit -> string
 

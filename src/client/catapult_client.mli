@@ -1,4 +1,3 @@
-
 (** Backend for Catapult, using a connection to the daemon.
 
 
@@ -10,7 +9,6 @@
 *)
 
 include Catapult.IMPL
-
 module Endpoint_address = Catapult.Endpoint_address
 
 val enable : unit -> unit
@@ -20,9 +18,9 @@ val set_trace_id : string -> unit
 (** Must be called before the setup. *)
 
 val get_trace_id : unit -> string
-
 val default_endpoint : Endpoint_address.t
 val get_endpoint : unit -> Endpoint_address.t
+
 val set_endpoint : Endpoint_address.t -> unit
 (** Must be called before the setup. *)
 
