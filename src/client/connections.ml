@@ -24,20 +24,26 @@ module Logger = struct
     mutable closed: bool;
   }
 
-  let send_msg (self : t) (msg : P.Ser.Client_message.t) : unit =
+  let send_msg ~ignore_err (self : t) (msg : P.Ser.Client_message.t) : unit =
     if not self.closed then (
-      Buffer.clear self.buf;
-      P.Ser.Client_message.encode self.out msg;
-      Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf)
+      try
+        Buffer.clear self.buf;
+        P.Ser.Client_message.encode self.out msg;
+        Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf)
+      with e ->
+        if ignore_err then
+          ()
+        else
+          raise e
     )
 
   let close (self : t) =
     if not self.closed then (
-      self.closed <- true;
       (let msg =
          P.Ser.Client_message.Client_close_trace { trace_id = self.trace_id }
        in
-       send_msg self msg);
+       send_msg ~ignore_err:true self msg);
+      self.closed <- true;
       Zmq.Socket.close self.sock
     )
 
@@ -52,7 +58,7 @@ module Logger = struct
     Gc.finalise (fun _ -> close logger) logger;
 
     (* send initial message *)
-    send_msg logger
+    send_msg ~ignore_err:false logger
       (P.Ser.Client_message.Client_open_trace
          { P.Ser.Client_open_trace.trace_id });
     logger
@@ -97,7 +103,7 @@ let send_msg (self : t) ~pid ~now (ev : P.Ser.Event.t) : unit =
      P.Ser.Client_message.Client_emit
        { P.Ser.Client_emit.trace_id = self.trace_id; ev }
    in
-   Logger.send_msg logger msg);
+   Logger.send_msg ~ignore_err:false logger msg);
 
   (* maybe emit GC stats as well *)
   Gc_stats.maybe_emit ~now:ev.ts_us ~pid:(Int64.to_int ev.pid) ();
