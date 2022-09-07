@@ -25,10 +25,11 @@ module Logger = struct
   }
 
   let send_msg (self : t) (msg : P.Ser.Client_message.t) : unit =
-    Buffer.clear self.buf;
-    P.Ser.Client_message.encode self.out msg;
-    Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf);
-    ()
+    if not self.closed then (
+      Buffer.clear self.buf;
+      P.Ser.Client_message.encode self.out msg;
+      Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf)
+    )
 
   let close (self : t) =
     if not self.closed then (
