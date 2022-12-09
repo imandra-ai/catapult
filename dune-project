@@ -12,7 +12,7 @@
   (name catapult)
   (synopsis "Tracing system based on the Catapult/TEF format")
   (depopts
-    mtime)
+    (mtime (< "2.0.0")))
   (depends
     base-threads
     base-unix
