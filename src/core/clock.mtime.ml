@@ -9,4 +9,4 @@ let program_start =
 (* main access to the clock *)
 let[@inline] now_us () : float =
   let now = Mtime_clock.now () in
-  Mtime.Span.to_us (Mtime.span program_start now)
+  Mtime.Span.to_float_ns (Mtime.span program_start now) /. 1e3
