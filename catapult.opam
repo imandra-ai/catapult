@@ -14,9 +14,7 @@ depends: [
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}
 ]
-depopts: [
-  "mtime" {< "2.0.0"}
-]
+depopts: ["mtime"]
 build: [
   ["dune" "subst"] {dev}
   [
