@@ -1,7 +1,9 @@
 module Db = Sqlite3
 
 let ( let@ ) x f = x f
+let spf = Printf.sprintf
 let debug_ = ref false
+let long = ref false
 
 let[@inline] check_db_ e =
   match e with
@@ -110,6 +112,15 @@ The special file "last" refers to the latest snapshot in the state
 directory (typically, ~/.local/share/catapult).
 |}
 
+let human_size d : string =
+  let d = float d in
+  if d > 2_000_000. then
+    spf "%.2fMB" (d /. 1e6)
+  else if d > 2000. then
+    spf "%.2fkB" (d /. 1e3)
+  else
+    spf "%fB" d
+
 let () =
   let out = ref "" in
   let opts =
@@ -117,6 +128,7 @@ let () =
       "-d", Arg.Set debug_, " enable debug";
       "--debug", Arg.Set debug_, " enable debug";
       "-o", Arg.Set_string out, " set output file (default 'trace.json.gz')";
+      "-l", Arg.Set long, " information for each file";
     ]
     |> Arg.align
   in
@@ -142,6 +154,15 @@ let () =
       Printf.printf "no file provided.\n";
       if files <> [] then (
         Printf.printf "daemon files:\n";
-        List.iter (Printf.printf "%s\n") files
+
+        let print_file s =
+          if !long then (
+            let size = (Unix.stat (Filename.concat d s)).st_size in
+            Printf.printf "%s (%s)\n" s (human_size size)
+          ) else
+            Printf.printf "%s\n" s
+        in
+
+        List.iter print_file files
       )
   )
