@@ -21,6 +21,7 @@
 ; generate (de)ser code
 
 (rule
+ (alias lint)
  (targets ser.ml)
  (deps ser.bare)
  (mode promote)
@@ -30,6 +31,7 @@
 ; vendor runtime library for BARE
 
 (rule
+ (alias lint)
  (targets Bare_encoding.ml Bare_encoding.mli)
  (mode promote)
  (action
