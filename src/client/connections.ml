@@ -98,13 +98,14 @@ let create ~(addr : P.Endpoint_address.t) ~trace_id () : t =
 
 (* send a message. *)
 let send_msg (self : t) ~pid ~now (ev : P.Ser.Event.t) : unit =
-  let logger = Thread_local.get_or_create self.per_t in
-  (let msg =
-     P.Ser.Client_message.Client_emit
-       { P.Ser.Client_emit.trace_id = self.trace_id; ev }
-   in
-   Logger.send_msg ~ignore_err:false logger msg);
+  if not self.closed then (
+    let logger = Thread_local.get_or_create self.per_t in
+    let msg =
+      P.Ser.Client_message.Client_emit
+        { P.Ser.Client_emit.trace_id = self.trace_id; ev }
+    in
+    Logger.send_msg ~ignore_err:false logger msg;
 
-  (* maybe emit GC stats as well *)
-  Gc_stats.maybe_emit ~now:ev.ts_us ~pid:(Int64.to_int ev.pid) ();
-  ()
+    (* maybe emit GC stats as well *)
+    Gc_stats.maybe_emit ~now:ev.ts_us ~pid:(Int64.to_int ev.pid) ()
+  )
