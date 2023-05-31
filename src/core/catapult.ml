@@ -18,17 +18,15 @@
 module type BACKEND = Backend.S
 module type IMPL = Impl.S
 
-module Event_type = Event_type
 module Arg = Arg
-module Tracing = Tracing
-module Nil_impl = Nil_impl
 module Control = Tracing.Control
-module Ser = Ser
+module Event_type = Event_type
+module Nil_impl = Nil_impl
+module Tracing = Tracing
 
 (**/**)
 
 module Atomic_shim_ = Atomic_shim_
-module Bare_encoding = Bare_encoding
 module Clock = Clock
 
 (**/**)

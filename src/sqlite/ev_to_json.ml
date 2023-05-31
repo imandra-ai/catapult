@@ -1,4 +1,4 @@
-module P = Catapult
+open Catapult_utils
 module Out = Catapult_utils.Json_out
 
 let[@inline] field_col oc = Out.char oc ':'
@@ -16,20 +16,9 @@ let[@inline] opt_iter o f =
   | None -> ()
   | Some x -> f x
 
-let to_json buf (ev : P.Ser.Event.t) : string =
-  let {
-    P.Ser.Event.id;
-    name;
-    ph;
-    pid;
-    tid;
-    cat;
-    ts_us;
-    args;
-    stack;
-    dur;
-    extra;
-  } =
+let to_json buf (ev : Ser.Event.t) : string =
+  let { Ser.Event.id; name; ph; pid; tid; cat; ts_us; args; stack; dur; extra }
+      =
     ev
   in
 
@@ -85,23 +74,23 @@ let to_json buf (ev : P.Ser.Event.t) : string =
       field_col buf;
       Out.char buf '{';
       Array.iteri
-        (fun i { P.Ser.Arg.key; value } ->
+        (fun i { Ser.Arg.key; value } ->
           if i > 0 then field_sep buf;
           Out.str_val buf key;
           field_col buf;
           match value with
-          | P.Ser.Arg_value.Int64 i -> Out.int64 buf i
-          | P.Ser.Arg_value.String s -> Out.str_val buf s
-          | P.Ser.Arg_value.Float64 f -> Out.float buf f
-          | P.Ser.Arg_value.Bool s -> Out.bool buf s
-          | P.Ser.Arg_value.Void -> Out.null buf)
+          | Ser.Arg_value.Int64 i -> Out.int64 buf i
+          | Ser.Arg_value.String s -> Out.str_val buf s
+          | Ser.Arg_value.Float64 f -> Out.float buf f
+          | Ser.Arg_value.Bool s -> Out.bool buf s
+          | Ser.Arg_value.Void -> Out.null buf)
         args;
       Out.char buf '}';
       field_sep buf);
 
   opt_iter extra (fun l ->
       Array.iter
-        (fun { P.Ser.Extra.key; value } ->
+        (fun { Ser.Extra.key; value } ->
           Out.str_val buf key;
           field_col buf;
           Out.str_val buf value;

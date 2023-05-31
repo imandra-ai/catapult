@@ -19,16 +19,16 @@ module Logger = struct
     t_id: int; (* thread id *)
     trace_id: string; (* int, obtain from server *)
     buf: Buffer.t;
-    out: P.Bare_encoding.Encode.t; (* outputs to buf *)
+    out: Bare_encoding.Encode.t; (* outputs to buf *)
     sock: [ `Dealer ] Zmq.Socket.t;
     mutable closed: bool;
   }
 
-  let send_msg ~ignore_err (self : t) (msg : P.Ser.Client_message.t) : unit =
+  let send_msg ~ignore_err (self : t) (msg : Ser.Client_message.t) : unit =
     if not self.closed then (
       try
         Buffer.clear self.buf;
-        P.Ser.Client_message.encode self.out msg;
+        Ser.Client_message.encode self.out msg;
         Zmq.Socket.send ~block:true self.sock (Buffer.contents self.buf)
       with e ->
         if ignore_err then
@@ -40,7 +40,7 @@ module Logger = struct
   let close (self : t) =
     if not self.closed then (
       (let msg =
-         P.Ser.Client_message.Client_close_trace { trace_id = self.trace_id }
+         Ser.Client_message.Client_close_trace { trace_id = self.trace_id }
        in
        send_msg ~ignore_err:true self msg);
       self.closed <- true;
@@ -50,7 +50,7 @@ module Logger = struct
   (* add a new logger, connect to daemon, and return logger *)
   let create ~trace_id ~ctx ~addr ~t_id () : t =
     let buf = Buffer.create 512 in
-    let out = P.Bare_encoding.Encode.of_buffer buf in
+    let out = Bare_encoding.Encode.of_buffer buf in
     let sock = connect_endpoint ctx addr in
 
     let logger = { t_id; sock; buf; out; trace_id; closed = false } in
@@ -59,8 +59,7 @@ module Logger = struct
 
     (* send initial message *)
     send_msg ~ignore_err:false logger
-      (P.Ser.Client_message.Client_open_trace
-         { P.Ser.Client_open_trace.trace_id });
+      (Ser.Client_message.Client_open_trace { Ser.Client_open_trace.trace_id });
     logger
 end
 
@@ -97,12 +96,12 @@ let create ~(addr : Endpoint_address.t) ~trace_id () : t =
   self
 
 (* send a message. *)
-let send_msg (self : t) ~pid ~now (ev : P.Ser.Event.t) : unit =
+let send_msg (self : t) ~pid ~now (ev : Ser.Event.t) : unit =
   if not self.closed then (
     let logger = Thread_local.get_or_create self.per_t in
     let msg =
-      P.Ser.Client_message.Client_emit
-        { P.Ser.Client_emit.trace_id = self.trace_id; ev }
+      Ser.Client_message.Client_emit
+        { Ser.Client_emit.trace_id = self.trace_id; ev }
     in
     Logger.send_msg ~ignore_err:false logger msg;
 

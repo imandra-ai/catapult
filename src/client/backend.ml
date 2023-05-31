@@ -2,7 +2,7 @@ open Catapult_utils
 module P = Catapult
 module Tracing = P.Tracing
 
-type event = P.Ser.Event.t
+type event = Ser.Event.t
 
 module type ARG = sig
   val conn : Connections.t
@@ -17,7 +17,7 @@ module Make (A : ARG) : P.BACKEND = struct
     | Some x -> Some (f x)
 
   let conv_arg (key, a) =
-    let open P.Ser in
+    let open Ser in
     let value =
       match a with
       | `Int x -> Arg_value.Int64 (Int64.of_int x)
@@ -31,7 +31,7 @@ module Make (A : ARG) : P.BACKEND = struct
   let emit ~id ~name ~ph ~tid ~pid ~cat ~ts_us ~args ~stack ~dur ?extra () :
       unit =
     let ev =
-      let open P.Ser in
+      let open Ser in
       let tid = Int64.of_int tid in
       let pid = Int64.of_int pid in
       let stack = opt_map_ Array.of_list stack in

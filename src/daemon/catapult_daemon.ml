@@ -6,7 +6,7 @@ module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
 open Catapult_utils
 open Tr.Syntax
 
-type event = P.Ser.Event.t
+type event = Ser.Event.t
 type batch = event list
 
 let now_us = P.Clock.now_us
@@ -202,17 +202,17 @@ end = struct
     Zmq.Socket.bind sock addr_str;
     sock
 
-  let handle_client_msg (self : t) (msg : P.Ser.Client_message.t) : unit =
-    Log.debug (fun k -> k "client msg:@ %a" P.Ser.Client_message.pp msg);
+  let handle_client_msg (self : t) (msg : Ser.Client_message.t) : unit =
+    Log.debug (fun k -> k "client msg:@ %a" Ser.Client_message.pp msg);
 
     match msg with
-    | P.Ser.Client_message.Client_open_trace { trace_id } ->
+    | Ser.Client_message.Client_open_trace { trace_id } ->
       Log.info (fun k -> k "client opened trace %S" trace_id);
       Tr.instant "open.trace" ~args:[ "id", `String trace_id ];
       Writer.incr_conn self.writer ~trace_id
-    | P.Ser.Client_message.Client_emit { trace_id; ev } ->
+    | Ser.Client_message.Client_emit { trace_id; ev } ->
       Writer.write self.writer ~trace_id ev
-    | P.Ser.Client_message.Client_close_trace { trace_id } ->
+    | Ser.Client_message.Client_close_trace { trace_id } ->
       Log.info (fun k -> k "client closed trace %S" trace_id);
       Writer.decr_conn self.writer ~trace_id
 
@@ -235,8 +235,8 @@ end = struct
     while not (Atomic.get self.stop) do
       match Zmq.Socket.recv ~block:false self.sock with
       | msg ->
-        let dec = P.Bare_encoding.Decode.of_string msg in
-        let msg = P.Ser.Client_message.decode dec in
+        let dec = Bare_encoding.Decode.of_string msg in
+        let msg = Ser.Client_message.decode dec in
         handle_client_msg self msg
       | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
         (* just poll *)

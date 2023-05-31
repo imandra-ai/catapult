@@ -1,5 +1,3 @@
-module P = Catapult
-
 type t
 
 val create :

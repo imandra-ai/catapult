@@ -6,3 +6,5 @@
 
 type t =
   [ `Int of int | `String of string | `Float of float | `Bool of bool | `Null ]
+(** Custum argument for events, spans, instants, etc. *)
+

@@ -1,3 +1,3 @@
-module P = Catapult
+open Catapult_utils
 
-val to_json : Buffer.t -> P.Ser.Event.t -> string
+val to_json : Buffer.t -> Ser.Event.t -> string

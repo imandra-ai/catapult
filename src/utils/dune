@@ -2,3 +2,24 @@
  (name catapult_utils)
  (public_name catapult.utils)
  (libraries catapult))
+
+; generate (de)ser code
+
+(rule
+ (alias lint)
+ (targets ser.ml)
+ (deps ser.bare)
+ (mode promote)
+ (action
+  (run bare-codegen --pp -o %{targets} %{deps})))
+
+; vendor runtime library for BARE
+
+(rule
+ (alias lint)
+ (targets Bare_encoding.ml Bare_encoding.mli)
+ (mode promote)
+ (action
+  (progn
+   (copy %{lib:bare_encoding:Bare_encoding.ml} Bare_encoding.ml)
+   (copy %{lib:bare_encoding:Bare_encoding.mli} Bare_encoding.mli))))

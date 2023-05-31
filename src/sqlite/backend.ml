@@ -3,7 +3,7 @@ module P = Catapult
 module Tracing = P.Tracing
 module Atomic = P.Atomic_shim_
 
-type event = P.Ser.Event.t
+type event = Ser.Event.t
 
 module type ARG = sig
   val writer : Writer.t
