@@ -1,0 +1,4 @@
+
+(tests
+  (names t_thread_local)
+  (libraries threads catapult catapult.utils))
