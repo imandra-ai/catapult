@@ -9,7 +9,7 @@
 *)
 
 include Catapult.IMPL
-module Endpoint_address = Catapult.Endpoint_address
+module Endpoint_address = Catapult_utils.Endpoint_address
 
 val enable : unit -> unit
 val enabled : unit -> bool

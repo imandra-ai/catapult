@@ -3,9 +3,9 @@ module P = Catapult
 module Tracing = P.Tracing
 module Atomic = P.Atomic_shim_
 
-let connect_endpoint ctx (addr : P.Endpoint_address.t) :
-    [ `Dealer ] Zmq.Socket.t =
-  let module E = P.Endpoint_address in
+let connect_endpoint ctx (addr : Endpoint_address.t) : [ `Dealer ] Zmq.Socket.t
+    =
+  let module E = Endpoint_address in
   let addr_str = E.to_string addr in
   let sock = Zmq.Socket.create ctx Zmq.Socket.dealer in
   Zmq.Socket.connect sock addr_str;
@@ -66,7 +66,7 @@ end
 
 type t = {
   per_t: Logger.t Thread_local.t;
-  addr: P.Endpoint_address.t;
+  addr: Endpoint_address.t;
   trace_id: string;
   ctx: Zmq.Context.t;
   mutable closed: bool;
@@ -84,7 +84,7 @@ let close (self : t) =
         (Printexc.to_string e)
   )
 
-let create ~(addr : P.Endpoint_address.t) ~trace_id () : t =
+let create ~(addr : Endpoint_address.t) ~trace_id () : t =
   let ctx = Zmq.Context.create () in
   Zmq.Context.set_io_threads ctx 6;
   let per_t =

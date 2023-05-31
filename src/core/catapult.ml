@@ -23,7 +23,6 @@ module Arg = Arg
 module Tracing = Tracing
 module Nil_impl = Nil_impl
 module Control = Tracing.Control
-module Endpoint_address = Endpoint_address
 module Ser = Ser
 
 (**/**)

@@ -3,6 +3,7 @@ module Tr = P.Tracing
 module P_db = Catapult_sqlite
 module Atomic = P.Atomic_shim_
 module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
+open Catapult_utils
 open Tr.Syntax
 
 type event = P.Ser.Event.t
@@ -171,11 +172,11 @@ end
 module Server : sig
   type t
 
-  val create : ?addr:P.Endpoint_address.t -> writer:Writer.t -> unit -> t
+  val create : ?addr:Endpoint_address.t -> writer:Writer.t -> unit -> t
   val stop : t -> unit
   val run : t -> unit
 end = struct
-  module Addr = P.Endpoint_address
+  module Addr = Endpoint_address
 
   type t = {
     writer: Writer.t;
@@ -305,8 +306,8 @@ let () =
     | None -> "."
     | Some d -> d
   in
-  let addr = ref P.Endpoint_address.default in
-  let set_addr s = addr := P.Endpoint_address.of_string_exn s in
+  let addr = ref Endpoint_address.default in
+  let set_addr s = addr := Endpoint_address.of_string_exn s in
   let opts =
     [
       "--addr", Arg.String set_addr, " network address to listen on";
@@ -323,7 +324,7 @@ let () =
   setup_logs ~debug:!debug ();
   Log.info (fun k ->
       k "daemon: listen on: %s, store traces in directory: %s"
-        (P.Endpoint_address.to_string !addr)
+        (Endpoint_address.to_string !addr)
         !dir);
 
   let writer = Writer.create ~dir:!dir () in
