@@ -1,10 +1,10 @@
 (lang dune 2.7)
 (generate_opam_files true)
 (license MIT)
-(homepage "https://github.com/AestheticIntegration/catapult")
+(homepage "https://github.com/imandra-ai/catapult")
 (authors "simon@imandra.ai")
 (maintainers "simon@imandra.ai")
-(source (github AestheticIntegration/catapult))
+(source (github imandra-ai/catapult))
 (version 0.2)
 (name catapult)
 

@@ -1,4 +1,4 @@
-# Catapult [![build](https://github.com/AestheticIntegration/catapult/actions/workflows/main.yml/badge.svg)](https://github.com/AestheticIntegration/catapult/actions/workflows/main.yml)
+# Catapult [![build](https://github.com/imandra-ai/catapult/actions/workflows/main.yml/badge.svg)](https://github.com/imandra-ai/catapult/actions/workflows/main.yml)
 
 This is a tracing library for OCaml, based on the
 [Catapult/TEF](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/)

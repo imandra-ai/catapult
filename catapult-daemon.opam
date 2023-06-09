@@ -5,8 +5,8 @@ synopsis: "Daemon for reliable multi-process logging with catapult"
 maintainer: ["simon@imandra.ai"]
 authors: ["simon@imandra.ai"]
 license: "MIT"
-homepage: "https://github.com/AestheticIntegration/catapult"
-bug-reports: "https://github.com/AestheticIntegration/catapult/issues"
+homepage: "https://github.com/imandra-ai/catapult"
+bug-reports: "https://github.com/imandra-ai/catapult/issues"
 depends: [
   "dune" {>= "2.7"}
   "odoc" {with-doc}
@@ -29,4 +29,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/AestheticIntegration/catapult.git"
+dev-repo: "git+https://github.com/imandra-ai/catapult.git"
