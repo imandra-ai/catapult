@@ -1,5 +1,0 @@
-(library
- (synopsis "Catapult backend that logs to a file")
- (name catapult_file)
- (public_name catapult-file)
- (libraries catapult catapult.utils threads.posix))

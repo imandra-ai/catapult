@@ -20,14 +20,6 @@
     (ocaml (>= "4.08"))))
 
 (package
-  (name catapult-file)
-  (synopsis "File logger for catapult")
-  (depends
-    (catapult (= :version))
-    (odoc :with-doc)
-    (ocaml (>= "4.08"))))
-
-(package
   (name catapult-sqlite)
   (synopsis "Sqlite-based backend for Catapult tracing")
   (depends
