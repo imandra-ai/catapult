@@ -17,7 +17,7 @@ module type S = sig
     pid:int ->
     cat:string list option ->
     ts_us:float ->
-    args:(string * Arg.t) list option ->
+    args:(string * [> `Float of float | Trace.user_data ]) list option ->
     stack:string list option ->
     dur:float option ->
     ?extra:(string * string) list ->
