@@ -1,6 +1,7 @@
 (library
  (name catapult_utils)
  (public_name catapult.utils)
+ (synopsis "Utilities for Catapult")
  (libraries catapult))
 
 ; generate (de)ser code
@@ -11,7 +12,7 @@
  (deps ser.bare)
  (mode promote)
  (action
-  (run bare-codegen --pp -o %{targets} %{deps})))
+  (run bare-codegen -o %{targets} %{deps})))
 
 ; vendor runtime library for BARE
 

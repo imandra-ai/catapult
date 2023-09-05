@@ -1,6 +1,5 @@
 open Catapult_utils
 module P = Catapult
-module Tracing = P.Tracing
 module Atomic = P.Atomic_shim_
 
 let connect_endpoint ctx (addr : Endpoint_address.t) : [ `Dealer ] Zmq.Socket.t

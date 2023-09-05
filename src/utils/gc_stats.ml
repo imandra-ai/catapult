@@ -10,17 +10,17 @@ let set_gc_interval_us s = gc_interval_us := s
 (* emit a GC counter event *)
 let[@inline never] emit_gc_ ~pid () =
   let st = Gc.quick_stat () in
-  P.Tracing.counter "gc"
-    ~cs:
-      [
-        Printf.sprintf "%d.major" pid, st.Gc.major_collections;
-        Printf.sprintf "%d.minor" pid, st.Gc.minor_collections;
-        Printf.sprintf "%d.compactions" pid, st.Gc.compactions;
-        Printf.sprintf "%d.heap_words" pid, st.Gc.heap_words;
-        ( Printf.sprintf "%d.heap_MB" pid,
-          st.Gc.heap_words * (Sys.word_size / 8) / 1024 / 1024 );
-        Printf.sprintf "%d.minor_words" pid, int_of_float st.Gc.minor_words;
-      ]
+  Trace.counter_int (Printf.sprintf "%d.major" pid) st.Gc.major_collections;
+  Trace.counter_int (Printf.sprintf "%d.minor" pid) st.Gc.minor_collections;
+  Trace.counter_int (Printf.sprintf "%d.compactions" pid) st.Gc.compactions;
+  Trace.counter_int (Printf.sprintf "%d.heap_words" pid) st.Gc.heap_words;
+  Trace.counter_int
+    (Printf.sprintf "%d.heap_MB" pid)
+    (st.Gc.heap_words * (Sys.word_size / 8) / 1024 / 1024);
+  Trace.counter_int
+    (Printf.sprintf "%d.minor_words" pid)
+    (int_of_float st.Gc.minor_words);
+  ()
 
 let maybe_emit ~now ~pid () =
   let must_emit_gc_ =

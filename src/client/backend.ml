@@ -1,6 +1,5 @@
 open Catapult_utils
 module P = Catapult
-module Tracing = P.Tracing
 
 type event = Ser.Event.t
 
@@ -16,7 +15,7 @@ module Make (A : ARG) : P.BACKEND = struct
     | None -> None
     | Some x -> Some (f x)
 
-  let conv_arg (key, a) =
+  let conv_arg (key, (a : [> `Float of float | Trace.user_data ])) =
     let open Ser in
     let value =
       match a with
@@ -24,7 +23,8 @@ module Make (A : ARG) : P.BACKEND = struct
       | `String s -> Arg_value.String s
       | `Float f -> Arg_value.Float64 f
       | `Bool b -> Arg_value.Bool b
-      | `Null -> Arg_value.Void
+      | `None -> Arg_value.Void
+      | _ -> assert false
     in
     { Arg.key; value }
 
@@ -35,7 +35,7 @@ module Make (A : ARG) : P.BACKEND = struct
       let tid = Int64.of_int tid in
       let pid = Int64.of_int pid in
       let stack = opt_map_ Array.of_list stack in
-      let ph = P.Event_type.to_char ph |> Char.code in
+      let ph = Event_type.to_char ph |> Char.code in
       let cat = opt_map_ Array.of_list cat in
       let extra =
         match extra with

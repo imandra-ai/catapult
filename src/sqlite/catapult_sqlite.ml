@@ -1,5 +1,4 @@
 module P = Catapult
-module Tracing = P.Tracing
 module Backend = Backend
 module Writer = Writer
 module Ev_to_json = Ev_to_json
@@ -53,10 +52,11 @@ let dir =
 
 let set_dir d = dir := d
 
+(* FIXME: with_ … *)
 let setup_ =
   lazy
     (if enabled () then (
-      at_exit P.Control.teardown;
+      at_exit Control.teardown;
       let trace_id = get_trace_id () in
       let file =
         if !file = "" then
