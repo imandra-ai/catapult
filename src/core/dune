@@ -1,8 +1,9 @@
 (library
  (synopsis "Profiling system based on the Catapult format")
- (modules_without_implementation backend impl arg)
+ (modules_without_implementation backend impl)
  (libraries
   threads
+  trace
   (select
    clock.ml
    from

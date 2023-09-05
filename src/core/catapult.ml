@@ -18,11 +18,9 @@
 module type BACKEND = Backend.S
 module type IMPL = Impl.S
 
-module Arg = Arg
-module Control = Tracing.Control
+module Adapt_backend = Adapt_backend
 module Event_type = Event_type
 module Nil_impl = Nil_impl
-module Tracing = Tracing
 
 (**/**)
 
