@@ -1,5 +1,4 @@
 module P = Catapult
-module Tracing = P.Tracing
 module Endpoint_address = Catapult_utils.Endpoint_address
 
 let trace_id = ref (try Sys.getenv "TRACE_ID" with _ -> "")
@@ -41,6 +40,7 @@ let mk_lazy_enable getenv =
 
 let enable, enabled = mk_lazy_enable tef_in_env
 
+(* FIXME: with_ … *)
 let setup_ =
   lazy
     (if enabled () then (

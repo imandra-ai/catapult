@@ -1,5 +1,7 @@
 (** Basic output of json values to a buffer *)
 
+type full_arg = [ `Float of float | `List of 'a array | Trace.user_data ] as 'a
+
 let char = Buffer.add_char
 let raw_string = Buffer.add_string
 let int out i = raw_string out (string_of_int i)
@@ -34,8 +36,8 @@ let arg oc = function
   | `Int i -> int oc i
   | `String s -> str_val oc s
   | `Bool b -> bool oc b
+  | `None -> null oc
   | `Float f -> float oc f
-  | `Null -> null oc
 
 let char_val oc (c : char) =
   char oc '"';

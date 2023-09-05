@@ -41,20 +41,6 @@ module Arg_value = struct
       Bare.Encode.uint enc 4L
     
     
-    let pp out (self:t) : unit =
-      match self with
-      | Int64 x ->
-        Format.fprintf out "(@[Int64@ %a@])" Bare.Pp.int64 x
-      | String x ->
-        Format.fprintf out "(@[String@ %a@])" Bare.Pp.string x
-      | Bool x ->
-        Format.fprintf out "(@[Bool@ %a@])" Bare.Pp.bool x
-      | Float64 x ->
-        Format.fprintf out "(@[Float64@ %a@])" Bare.Pp.float x
-      | Void ->
-        Format.fprintf out "Void"
-      
-      
 end
 
 module Arg = struct
@@ -75,15 +61,6 @@ module Arg = struct
       Arg_value.encode enc self.value;
     end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "key=%a;@ " Bare.Pp.string x.key;
-       Format.fprintf out "value=%a;@ " Arg_value.pp x.value;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Extra = struct
@@ -104,15 +81,6 @@ module Extra = struct
       Bare.Encode.string enc self.value;
     end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "key=%a;@ " Bare.Pp.string x.key;
-       Format.fprintf out "value=%a;@ " Bare.Pp.string x.value;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Event = struct
@@ -198,28 +166,6 @@ module Event = struct
           Array.iter (fun xi -> Extra.encode enc xi) arr)) enc self.extra;
     end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "id=%a;@ " (Bare.Pp.option Bare.Pp.string) x.id;
-       Format.fprintf out "name=%a;@ " Bare.Pp.string x.name;
-       Format.fprintf out "ph=%a;@ " Bare.Pp.int x.ph;
-       Format.fprintf out "pid=%a;@ " Bare.Pp.int64 x.pid;
-       Format.fprintf out "tid=%a;@ " Bare.Pp.int64 x.tid;
-       Format.fprintf out "cat=%a;@ "
-         (Bare.Pp.option (Bare.Pp.array Bare.Pp.string)) x.cat;
-       Format.fprintf out "ts_us=%a;@ " Bare.Pp.float x.ts_us;
-       Format.fprintf out "args=%a;@ "
-         (Bare.Pp.option (Bare.Pp.array Arg.pp)) x.args;
-       Format.fprintf out "stack=%a;@ "
-         (Bare.Pp.option (Bare.Pp.array Bare.Pp.string)) x.stack;
-       Format.fprintf out "dur=%a;@ " (Bare.Pp.option Bare.Pp.float) x.dur;
-       Format.fprintf out "extra=%a;@ "
-         (Bare.Pp.option (Bare.Pp.array Extra.pp)) x.extra;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Client_open_trace = struct
@@ -234,14 +180,6 @@ module Client_open_trace = struct
   let encode (enc: Bare.Encode.t) (self: t) : unit =
     begin Bare.Encode.string enc self.trace_id; end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "trace_id=%a;@ " Bare.Pp.string x.trace_id;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Client_close_trace = struct
@@ -256,14 +194,6 @@ module Client_close_trace = struct
   let encode (enc: Bare.Encode.t) (self: t) : unit =
     begin Bare.Encode.string enc self.trace_id; end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "trace_id=%a;@ " Bare.Pp.string x.trace_id;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Client_emit = struct
@@ -281,15 +211,6 @@ module Client_emit = struct
   let encode (enc: Bare.Encode.t) (self: t) : unit =
     begin Bare.Encode.string enc self.trace_id; Event.encode enc self.ev; end
   
-  let pp out (self:t) : unit =
-    (fun out x ->
-     begin
-       Format.fprintf out "{ @[";
-       Format.fprintf out "trace_id=%a;@ " Bare.Pp.string x.trace_id;
-       Format.fprintf out "ev=%a;@ " Event.pp x.ev;
-       Format.fprintf out "@]}";
-     end) out self
-
 end
 
 module Client_message = struct
@@ -323,16 +244,6 @@ module Client_message = struct
       Client_emit.encode enc x
     
     
-    let pp out (self:t) : unit =
-      match self with
-      | Client_open_trace x ->
-        Format.fprintf out "(@[Client_open_trace@ %a@])" Client_open_trace.pp x
-      | Client_close_trace x ->
-        Format.fprintf out "(@[Client_close_trace@ %a@])" Client_close_trace.pp x
-      | Client_emit x ->
-        Format.fprintf out "(@[Client_emit@ %a@])" Client_emit.pp x
-      
-      
 end
 
 

@@ -1,15 +1,14 @@
 module P = Catapult
-module Tr = P.Tracing
 module P_db = Catapult_sqlite
 module Atomic = P.Atomic_shim_
 module Log = (val Logs.src_log (Logs.Src.create "catapult.daemon"))
 open Catapult_utils
-open Tr.Syntax
 
 type event = Ser.Event.t
 type batch = event list
 
 let now_us = P.Clock.now_us
+let ( let@ ) = ( @@ )
 
 (** Handler writers for each trace *)
 module Writer : sig
@@ -71,12 +70,12 @@ end = struct
     )
 
   let close_ (self : t) ~trace_id (db : db_conn) : unit =
-    Tr.instant "db.close" ~args:[ "trace_id", `String trace_id ];
+    Trace.message "db.close" ~data:(fun () -> [ "trace_id", `String trace_id ]);
     flush_batch_ db;
     P_db.Writer.close db.writer
 
   let[@inline never] open_ (self : t) ~trace_id ~rc : db_conn =
-    Tr.instant "db.open" ~args:[ "trace_id", `String trace_id ];
+    Trace.message "db.open" ~data:(fun () -> [ "trace_id", `String trace_id ]);
     let writer = P_db.Writer.create ~append:true ~dir:self.dir ~trace_id () in
     let db =
       {
@@ -152,8 +151,11 @@ end = struct
       (fun trace_id db ->
         let age = now -. Atomic.get db.last_write in
         if age > close_after_us then (
-          Tr.instant "db.gc"
-            ~args:[ "trace_id", `String trace_id; "age", `Float (age *. 1e-6) ];
+          Trace.message "db.gc" ~data:(fun () ->
+              [
+                "trace_id", `String trace_id;
+                "age", `Int (int_of_float (age *. 1e-6));
+              ]);
           close_ self ~trace_id db;
           (* collect *)
           None
@@ -203,12 +205,11 @@ end = struct
     sock
 
   let handle_client_msg (self : t) (msg : Ser.Client_message.t) : unit =
-    Log.debug (fun k -> k "client msg:@ %a" Ser.Client_message.pp msg);
-
+    (* Log.debug (fun k -> k "client msg:@ %a" Ser.Client_message.pp msg); *)
     match msg with
     | Ser.Client_message.Client_open_trace { trace_id } ->
       Log.info (fun k -> k "client opened trace %S" trace_id);
-      Tr.instant "open.trace" ~args:[ "id", `String trace_id ];
+      Trace.message "open.trace" ~data:(fun () -> [ "id", `String trace_id ]);
       Writer.incr_conn self.writer ~trace_id
     | Ser.Client_message.Client_emit { trace_id; ev } ->
       Writer.write self.writer ~trace_id ev
@@ -225,7 +226,7 @@ end = struct
   let stop self = Atomic.set self.stop true
 
   let run (self : t) : unit =
-    let@ () = Tr.with_ "listen.loop" in
+    let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "listen.loop" in
     Sys.catch_break true;
 
     let poll = Zmq.Poll.(mask_of [| self.sock, In |]) in
@@ -240,35 +241,12 @@ end = struct
         handle_client_msg self msg
       | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
         (* just poll *)
-        let@ () = Tr.with_ "poll" in
+        let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "poll" in
         ignore (Zmq.Poll.poll ~timeout poll : _ option array)
       | exception Sys.Break ->
-        Tr.instant "sys.break";
+        Trace.message "sys.break";
         Atomic.set self.stop true
     done
-end
-
-(** Background thread *)
-module Ticker_thread = struct
-  open Catapult_utils
-
-  let start ~server ~writer () =
-    let run () =
-      Tr.meta_thread_name "ticker";
-      let pid = Unix.getpid () in
-      while true do
-        let@ () = Tr.with_ "tick" in
-        Thread.delay 0.2;
-        let now = P.Clock.now_us () in
-
-        Tr.tick ();
-        Tr.counter "daemon" ~cs:[ "writer", Writer.size writer ];
-        Gc_stats.maybe_emit ~now ~pid ();
-        Writer.tick writer
-      done
-    in
-
-    ignore (Thread.create run () : Thread.t)
 end
 
 module Dir = Directories.Project_dirs (struct
@@ -295,8 +273,8 @@ let () =
   (* tracing for the daemon itself *)
   let@ () = Catapult_sqlite.with_setup in
 
-  Tr.meta_process_name "catapult-daemon";
-  Tr.meta_thread_name "main";
+  Trace.set_process_name "catapult-daemon";
+  Trace.set_thread_name "main";
 
   let debug = ref false in
   let dir =
@@ -329,6 +307,5 @@ let () =
 
   let writer = Writer.create ~dir:!dir () in
   let server = Server.create ~writer ~addr:!addr () in
-  Ticker_thread.start ~writer ~server ();
   Server.run server;
   ()
