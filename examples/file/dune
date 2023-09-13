@@ -1,4 +1,0 @@
-(executable
- (name basic)
- (optional)
- (libraries threads.posix catapult catapult-file))
