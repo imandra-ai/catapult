@@ -1,6 +1,7 @@
 (** Basic output of json values to a buffer *)
 
-type full_arg = [ `Float of float | `List of 'a array | Trace.user_data ] as 'a
+type 'a arg = [ Catapult.arg | `List of 'a list ] as 'a
+(** Extended kind of argument *)
 
 let char = Buffer.add_char
 let raw_string = Buffer.add_string
@@ -32,12 +33,22 @@ let str_val oc (s : string) =
   String.iter encode_char s;
   char oc '"'
 
-let arg oc = function
+let rec arg oc : [< _ arg ] -> unit = function
   | `Int i -> int oc i
   | `String s -> str_val oc s
   | `Bool b -> bool oc b
   | `None -> null oc
   | `Float f -> float oc f
+  | `List l -> list oc l
+
+and list oc l =
+  char oc '[';
+  List.iteri
+    (fun i x ->
+      if i > 0 then char oc ',';
+      arg oc x)
+    l;
+  char oc ']'
 
 let char_val oc (c : char) =
   char oc '"';

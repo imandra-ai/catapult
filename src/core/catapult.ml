@@ -18,9 +18,16 @@
 module type BACKEND = Backend.S
 module type IMPL = Impl.S
 
+type backend = (module BACKEND)
+type arg = Backend.arg
+
 module Adapt_backend = Adapt_backend
 module Event_type = Event_type
 module Nil_impl = Nil_impl
+
+(** Turn a catapult backend into a Trace collector *)
+let trace_collector_of_backend : backend -> Trace_core.collector =
+  Adapt_backend.adapt
 
 (**/**)
 

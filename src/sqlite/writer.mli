@@ -8,8 +8,8 @@ val create :
   ?sync:[ `OFF | `NORMAL | `FULL ] ->
   ?append:bool ->
   ?file:string ->
-  trace_id:string ->
-  dir:string ->
+  ?trace_id:string ->
+  ?dir:string ->
   unit ->
   t
 (** Open writer into a database file.
@@ -32,8 +32,8 @@ val with_ :
   ?sync:[ `OFF | `NORMAL | `FULL ] ->
   ?append:bool ->
   ?file:string ->
-  trace_id:string ->
-  dir:string ->
+  ?trace_id:string ->
+  ?dir:string ->
   unit ->
   (t -> 'a) ->
   'a

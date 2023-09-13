@@ -2,6 +2,9 @@ open Catapult_utils
 module P = Catapult
 module Atomic = P.Atomic_shim_
 
+let ( let@ ) = ( @@ )
+let default_addr = Endpoint_address.default
+
 let connect_endpoint ctx (addr : Endpoint_address.t) : [ `Dealer ] Zmq.Socket.t
     =
   let module E = Endpoint_address in
@@ -82,7 +85,7 @@ let close (self : t) =
         (Printexc.to_string e)
   )
 
-let create ~(addr : Endpoint_address.t) ~trace_id () : t =
+let create ~(addr : Endpoint_address.t) ?(trace_id = "trace") () : t =
   let ctx = Zmq.Context.create () in
   Zmq.Context.set_io_threads ctx 6;
   let per_t =
@@ -94,7 +97,6 @@ let create ~(addr : Endpoint_address.t) ~trace_id () : t =
   Gc.finalise close self;
   self
 
-(* send a message. *)
 let send_msg (self : t) ~pid ~now (ev : Ser.Event.t) : unit =
   if not self.closed then (
     let logger = Thread_local.get_or_create self.per_t in
@@ -107,3 +109,8 @@ let send_msg (self : t) ~pid ~now (ev : Ser.Event.t) : unit =
     (* maybe emit GC stats as well *)
     Gc_stats.maybe_emit ~now:ev.ts_us ~pid:(Int64.to_int ev.pid) ()
   )
+
+let with_ ~addr ?trace_id () f =
+  let conn = create ~addr ?trace_id () in
+  let@ () = Fun.protect ~finally:(fun () -> close conn) in
+  f conn

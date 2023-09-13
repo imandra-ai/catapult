@@ -1,5 +1,6 @@
 module P = Catapult
 module Atomic = P.Atomic_shim_
+module Trace = Trace_core
 
 (* store last time we emitted GC events *)
 let last_gc : float Atomic.t = Atomic.make (P.Clock.now_us ())

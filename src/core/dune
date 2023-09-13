@@ -3,7 +3,7 @@
  (modules_without_implementation backend impl)
  (libraries
   threads
-  trace
+  (re_export trace.core)
   (select
    clock.ml
    from

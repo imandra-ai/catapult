@@ -4,18 +4,18 @@ module P = Catapult
 type event = Ser.Event.t
 
 module type ARG = sig
-  val conn : Connections.t
+  val conn : Connection.t
 end
 
 module Make (A : ARG) : P.BACKEND = struct
   let conn = A.conn
-  let teardown () = Connections.close conn
+  let teardown () = Connection.close conn
 
   let[@inline] opt_map_ f = function
     | None -> None
     | Some x -> Some (f x)
 
-  let conv_arg (key, (a : [> `Float of float | Trace.user_data ])) =
+  let conv_arg (key, (a : [< `Float of float | Trace.user_data ])) =
     let open Ser in
     let value =
       match a with
@@ -24,7 +24,6 @@ module Make (A : ARG) : P.BACKEND = struct
       | `Float f -> Arg_value.Float64 f
       | `Bool b -> Arg_value.Bool b
       | `None -> Arg_value.Void
-      | _ -> assert false
     in
     { Arg.key; value }
 
@@ -35,7 +34,7 @@ module Make (A : ARG) : P.BACKEND = struct
       let tid = Int64.of_int tid in
       let pid = Int64.of_int pid in
       let stack = opt_map_ Array.of_list stack in
-      let ph = Event_type.to_char ph |> Char.code in
+      let ph = P.Event_type.to_char ph |> Char.code in
       let cat = opt_map_ Array.of_list cat in
       let extra =
         match extra with
@@ -50,10 +49,16 @@ module Make (A : ARG) : P.BACKEND = struct
       in
       { Event.id; name; ph; tid; pid; cat; ts_us; args; stack; dur; extra }
     in
-    Connections.send_msg conn ~pid ~now:ts_us ev
+    Connection.send_msg conn ~pid ~now:ts_us ev
 
   let tick () =
     let now = P.Clock.now_us () in
     let pid = Unix.getpid () in
     Gc_stats.maybe_emit ~now ~pid ()
 end
+
+let make (c : Connection.t) : P.backend =
+  let module M = Make (struct
+    let conn = c
+  end) in
+  (module M)
