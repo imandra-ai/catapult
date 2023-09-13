@@ -1,7 +1,6 @@
 open Catapult_utils
-module P = Catapult
-module Tracing = P.Tracing
-module Atomic = P.Atomic_shim_
+module Atomic = Catapult.Atomic_shim_
+module Clock = Catapult.Clock
 
 type event = Ser.Event.t
 
@@ -9,7 +8,7 @@ module type ARG = sig
   val writer : Writer.t
 end
 
-module Make (A : ARG) : P.BACKEND = struct
+module Make (A : ARG) : Catapult.BACKEND = struct
   let writer = A.writer
 
   type local_buf = {
@@ -23,7 +22,7 @@ module Make (A : ARG) : P.BACKEND = struct
     try int_of_string @@ Sys.getenv "TRACE_BATCH_SIZE" with _ -> 100
 
   let max_batch_interval_us = 3. *. 1e6 (* max time between 2 flushes *)
-  let last_batch_flush = Atomic.make (P.Clock.now_us ())
+  let last_batch_flush = Atomic.make (Clock.now_us ())
 
   (* send current batch to the writer *)
   let flush_batch (self : local_buf) : unit =
@@ -57,7 +56,7 @@ module Make (A : ARG) : P.BACKEND = struct
     Writer.close writer
 
   let tick () =
-    let now = P.Clock.now_us () in
+    let now = Clock.now_us () in
     Thread_local.iter buf ~f:(check_batch ~now)
 
   module Out = Catapult_utils.Json_out
@@ -91,7 +90,7 @@ module Make (A : ARG) : P.BACKEND = struct
       field buf {|"name"|} Out.str_val name;
       field_sep buf;
 
-      field buf {|"ph"|} Out.char_val (P.Event_type.to_char ph);
+      field buf {|"ph"|} Out.char_val (Catapult.Event_type.to_char ph);
       field_sep buf;
 
       field buf {|"tid"|} any_val (string_of_int tid);
@@ -141,7 +140,7 @@ module Make (A : ARG) : P.BACKEND = struct
               if i > 0 then field_sep buf;
               Out.str_val buf k;
               field_col buf;
-              Out.arg buf (v : P.Arg.t))
+              Out.arg buf (v :> _ Out.arg))
             args;
           Out.char buf '}';
           field_sep buf);
@@ -169,3 +168,9 @@ module Make (A : ARG) : P.BACKEND = struct
 
     ()
 end
+
+let make (wr : Writer.t) : Catapult.backend =
+  let module M = Make (struct
+    let writer = wr
+  end) in
+  (module M)

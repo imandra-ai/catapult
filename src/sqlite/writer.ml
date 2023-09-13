@@ -79,6 +79,11 @@ let create ?(sync = `NORMAL) ?(append = false) ?file ~trace_id ~dir () : t =
   Gc.finalise close self;
   self
 
+let with_ ?sync ?append ?file ~trace_id ~dir () f =
+  let wr = create ?sync ?append ?file ~trace_id ~dir () in
+  let@ () = Fun.protect ~finally:(fun () -> close wr) in
+  f wr
+
 let cycle_stmt (self : t) =
   Db.finalize self.stmt_insert |> check_ret_;
   let stmt_insert = Db.prepare self.db "insert into events values (?);" in

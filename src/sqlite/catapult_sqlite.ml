@@ -1,90 +1,14 @@
-module P = Catapult
-module Backend = Backend
+(** Backend that writes directly to a Sqlite database.
+
+    Creating the database is done via {!Writer.create}
+    or {!Writer.with_}. Then {!Backend} can be used to
+    turn this {!Writer.t} into a Tracing collector. *)
+
 module Writer = Writer
-module Ev_to_json = Ev_to_json
+module Backend = Backend
 
-let trace_id = ref (try Sys.getenv "TRACE_ID" with _ -> "")
-let set_trace_id s = trace_id := s
-let file = ref (try Sys.getenv "TRACE_DB" with _ -> "")
-let set_file f = file := f
-let sqlite_sync_ = ref None
-let set_sqlite_sync s = sqlite_sync_ := Some s
-let multiproc_ = ref false
-let set_multiproc b = multiproc_ := b
+let backend_of_writer : Writer.t -> Catapult.backend = Backend.make
 
-(* try to make a non-stupid default id, based on PID + date.
-   This is not perfect, use a UUID4 if possible. *)
-let[@inline never] invent_trace_id_ () : string =
-  let pid = Unix.getpid () in
-  let now = Unix.gettimeofday () in
-  let tm = Unix.gmtime now in
-  Printf.sprintf "catapult-%d-%d-%0d-%02d-%02d-%02d-pid-%d" (1900 + tm.tm_year)
-    (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec pid
-
-let[@inline] get_trace_id () =
-  if !trace_id = "" then trace_id := invent_trace_id_ ();
-  !trace_id
-
-let trace_in_env () =
-  List.mem (Sys.getenv_opt "TRACE") [ Some "1"; Some "true" ]
-
-let mk_lazy_enable getenv =
-  let r = ref false in
-  let enabled_thunk = lazy (!r || getenv ()) in
-  let[@inline] enabled () = Lazy.force enabled_thunk in
-  let enable () = if not !r then r := true in
-  enable, enabled
-
-let enable, enabled = mk_lazy_enable trace_in_env
-
-module Dir = Directories.Project_dirs (struct
-  let qualifier = "ai"
-  let organization = "imandra"
-  let application = "catapult"
-end)
-
-let dir =
-  ref
-  @@
-  match Dir.data_dir with
-  | None -> "."
-  | Some d -> d
-
-let set_dir d = dir := d
-
-(* FIXME: with_ … *)
-let setup_ =
-  lazy
-    (if enabled () then (
-      at_exit Control.teardown;
-      let trace_id = get_trace_id () in
-      let file =
-        if !file = "" then
-          None
-        else
-          Some !file
-      in
-      let append = !multiproc_ in
-      (* do not truncate if others also write *)
-      let writer =
-        Writer.create ~append ?sync:!sqlite_sync_ ?file ~trace_id ~dir:!dir ()
-      in
-      let module B = Backend.Make (struct
-        let writer = writer
-      end) in
-      let backend = (module B : P.BACKEND) in
-      P.Control.setup (Some backend)
-    ))
-
-let setup () = Lazy.force setup_
-let teardown = P.Tracing.Control.teardown
-
-let with_setup f =
-  setup ();
-  try
-    let x = f () in
-    teardown ();
-    x
-  with e ->
-    teardown ();
-    raise e
+(** Turn a writer into a Trace collector. *)
+let trace_collector_of_writer : Writer.t -> Trace_core.collector =
+ fun wr -> backend_of_writer wr |> Catapult.trace_collector_of_backend
