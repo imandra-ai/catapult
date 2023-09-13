@@ -1,4 +1,8 @@
+(** DB writer. *)
+
 type t
+(** DB writer. This holds a sqlite DB and writes new
+    events to it. *)
 
 val create :
   ?sync:[ `OFF | `NORMAL | `FULL ] ->
@@ -23,6 +27,16 @@ val cycle_stmt : t -> unit
 
 val close : t -> unit
 (** Close writer. *)
+
+val with_ :
+  ?sync:[ `OFF | `NORMAL | `FULL ] ->
+  ?append:bool ->
+  ?file:string ->
+  trace_id:string ->
+  dir:string ->
+  unit ->
+  (t -> 'a) ->
+  'a
 
 val write_string_l : t -> string list -> unit
 
