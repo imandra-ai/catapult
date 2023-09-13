@@ -44,7 +44,8 @@ let close self =
     done
   )
 
-let create ?(sync = `NORMAL) ?(append = false) ?file ~trace_id ~dir () : t =
+let create ?(sync = `NORMAL) ?(append = false) ?file ?trace_id ?(dir = ".") () :
+    t =
   let file =
     match file with
     | Some f -> f
@@ -54,6 +55,11 @@ let create ?(sync = `NORMAL) ?(append = false) ?file ~trace_id ~dir () : t =
            (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir))
              : int)
        with _ -> ());
+      let trace_id =
+        match trace_id with
+        | Some id -> id
+        | None -> "trace"
+      in
       Filename.concat dir (trace_id ^ ".db")
   in
   let db = Db.db_open file in
@@ -79,8 +85,8 @@ let create ?(sync = `NORMAL) ?(append = false) ?file ~trace_id ~dir () : t =
   Gc.finalise close self;
   self
 
-let with_ ?sync ?append ?file ~trace_id ~dir () f =
-  let wr = create ?sync ?append ?file ~trace_id ~dir () in
+let with_ ?sync ?append ?file ?trace_id ?dir () f =
+  let wr = create ?sync ?append ?file ?trace_id ?dir () in
   let@ () = Fun.protect ~finally:(fun () -> close wr) in
   f wr
 

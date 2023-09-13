@@ -1,6 +1,6 @@
-module Tr = Catapult.Tracing
-open Tr.Syntax
+module Tr = Trace
 
+let ( let@ ) = ( @@ )
 let spf = Printf.sprintf
 
 let rec fib n =
@@ -10,10 +10,14 @@ let rec fib n =
     fib (n - 1) + fib (n - 2)
 
 let do_work () =
-  let@ () = Tr.with_ "dowork" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "dowork" in
   for j = 0 to 5_000 do
     let n = 15 + (j mod 5) in
-    let@ () = Tr.with_ ~args:[ "j", `Int j; "fib n", `Int n ] "step" in
+    let@ _sp =
+      Trace.with_span ~__FILE__ ~__LINE__
+        ~data:(fun () -> [ "j", `Int j; "fib n", `Int n ])
+        "step"
+    in
     ignore (Sys.opaque_identity (fib n) : int)
   done
 
@@ -21,7 +25,7 @@ let run n =
   Printf.printf "run %d iterations\n%!" n;
 
   for i = 1 to n do
-    let@ () = Tr.with_ "main iter" in
+    let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "main iter" in
     Printf.printf "iteration %d\n%!" i;
     for j = 1 to 4 do
       do_work ()
@@ -29,11 +33,10 @@ let run n =
     if i mod 3 = 0 then Gc.major ()
   done
 
-type mode = Net | File | Db
+type mode = Net | Db
 
 let mode_of_str = function
   | "net" -> Net
-  | "file" -> File
   | "db" -> Db
   | s -> failwith ("unknown mode: " ^ s)
 
@@ -45,7 +48,7 @@ let sync_of_str = function
 
 let () =
   let n = ref 10 in
-  let mode = ref File in
+  let mode = ref Db in
   let file = ref "trace.json" in
   let addr = ref Catapult_client.default_endpoint in
   let j = ref 1 in
@@ -59,7 +62,7 @@ let () =
       "-n", Arg.Set_int n, " number of iterations";
       "-o", Arg.Set_string file, " output file";
       ( "--mode",
-        Arg.Symbol ([ "net"; "file"; "db" ], fun s -> mode := mode_of_str s),
+        Arg.Symbol ([ "net"; "db" ], fun s -> mode := mode_of_str s),
         " serialization mode" );
       "--worker", Arg.Set worker, " act as a worker";
       ( "--db",
@@ -83,19 +86,10 @@ let () =
   in
   Arg.parse opts (fun _ -> ()) "heavy";
 
-  if !worker then
-    Catapult_sqlite.set_multiproc true
-  else if (not !worker) && !j > 1 then (
-    Catapult_sqlite.set_multiproc true;
-
+  if (not !worker) && !j > 1 then (
     (match !mode with
-    | Net ->
-      if !trace_id <> "" then Catapult_client.set_trace_id !trace_id;
-      trace_id := Catapult_client.get_trace_id ()
-    | Db ->
-      if !trace_id <> "" then Catapult_sqlite.set_trace_id !trace_id;
-      trace_id := Catapult_sqlite.get_trace_id ()
-    | File -> ());
+    | Net -> ()
+    | Db -> failwith "cannot use -j with a sqlite backend");
 
     let bin_name = Sys.executable_name in
     for _k = 2 to !j do
@@ -115,16 +109,17 @@ let () =
   | Net ->
     Printf.printf "use net client %s\n%!"
       (Catapult_client.Endpoint_address.to_string !addr);
-    if !trace_id <> "" then Catapult_client.set_trace_id !trace_id;
-    Catapult_client.set_endpoint !addr;
-    Catapult_client.with_setup run
+    let trace_id =
+      if !trace_id <> "" then
+        Some !trace_id
+      else
+        None
+    in
+    let@ conn = Catapult_client.with_conn ?trace_id ~addr:!addr () in
+    Trace_core.setup_collector (Catapult_client.trace_collector_of_conn conn);
+    run ()
   | Db ->
     Printf.printf "use sqlite backend %s\n%!" !db;
-    if !trace_id <> "" then Catapult_sqlite.set_trace_id !trace_id;
-    Catapult_sqlite.set_file !db;
-    Catapult_sqlite.set_sqlite_sync !sync;
-    Catapult_sqlite.with_setup run
-  | File ->
-    Printf.printf "write to file %S\n%!" !file;
-    Catapult_file.set_file !file;
-    Catapult_file.with_setup run
+    let@ writer = Catapult_sqlite.Writer.with_ ~file:!db ~sync:!sync () in
+    Trace.setup_collector (Catapult_sqlite.trace_collector_of_writer writer);
+    run ()

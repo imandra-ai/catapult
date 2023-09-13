@@ -1,5 +1,4 @@
-open Catapult_utils
-module Out = Catapult_utils.Json_out
+module Out = Json_out
 
 let[@inline] field_col oc = Out.char oc ':'
 let[@inline] field_sep oc = Out.char oc ','

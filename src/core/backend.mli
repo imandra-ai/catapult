@@ -8,6 +8,8 @@
     if no backend is installed, the tracing functions will do nothing.
 *)
 
+type arg = [ `Float of float | Trace_core.user_data ]
+
 module type S = sig
   val emit :
     id:string option ->
@@ -17,7 +19,7 @@ module type S = sig
     pid:int ->
     cat:string list option ->
     ts_us:float ->
-    args:(string * [> `Float of float | Trace.user_data ]) list option ->
+    args:(string * [< arg ]) list option ->
     stack:string list option ->
     dur:float option ->
     ?extra:(string * string) list ->

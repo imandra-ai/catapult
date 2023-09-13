@@ -10,7 +10,7 @@ bug-reports: "https://github.com/imandra-ai/catapult/issues"
 depends: [
   "dune" {>= "2.7"}
   "base-threads"
-  "base-unix"
+  "trace" {>= "0.3"}
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}
 ]

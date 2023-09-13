@@ -1,3 +1,5 @@
+module Trace = Trace_core
+
 module type BACKEND = Backend.S
 module type COLLECTOR = Trace.Collector.S
 
@@ -36,29 +38,31 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
       let now = now_ () in
       let dur = now -. start in
       let args =
-        (data : (string * Trace.user_data) list :> (string * full_arg) list)
+        (data
+          : (string * Trace_core.user_data) list
+          :> (string * full_arg) list)
       in
       emit_real_ ~args name ~ts_us:start ~dur X
     in
     Fun.protect ~finally (fun () -> f sp)
 
   let enter_manual_span ~parent ~flavor ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data
-      name : Trace.explicit_span =
+      name : Trace_core.explicit_span =
     let span = Int64.of_int (Atomic_shim_.fetch_and_add span_gen_ 1) in
     let flavor = Option.value ~default:`Sync flavor in
     let args =
-      (data : (string * Trace.user_data) list :> (string * full_arg) list)
+      (data : (string * Trace_core.user_data) list :> (string * full_arg) list)
     in
     (match flavor with
     | `Sync ->
       emit_real_ ~cat:[ "async" ] ~args name ~id:(Int64.to_string span) B
     | `Async ->
       emit_real_ ~cat:[ "async" ] ~args name ~id:(Int64.to_string span) A_b);
-    let meta = Trace.Meta_map.(empty |> add k_span_info (name, flavor)) in
-    { Trace.span; meta }
+    let meta = Trace_core.Meta_map.(empty |> add k_span_info (name, flavor)) in
+    { Trace_core.span; meta }
 
-  let exit_manual_span (es : Trace.explicit_span) : unit =
-    let name, flavor = Trace.Meta_map.find_exn k_span_info es.meta in
+  let exit_manual_span (es : Trace_core.explicit_span) : unit =
+    let name, flavor = Trace_core.Meta_map.find_exn k_span_info es.meta in
     match flavor with
     | `Sync -> emit_real_ name E
     | `Async ->

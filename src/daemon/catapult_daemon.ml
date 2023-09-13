@@ -1,3 +1,4 @@
+module Trace = Trace_core
 module P = Catapult
 module P_db = Catapult_sqlite
 module Atomic = P.Atomic_shim_
@@ -114,7 +115,7 @@ end = struct
     | None -> ()
 
   let[@inline] str_of_ev_ (self : t) (ev : event) : string =
-    P_db.Ev_to_json.to_json self.buf ev
+    Ev_to_json.to_json self.buf ev
 
   let max_batch_size = 50
 
@@ -271,7 +272,8 @@ let setup_logs ~debug () =
 
 let () =
   (* tracing for the daemon itself *)
-  let@ () = Catapult_sqlite.with_setup in
+  let@ writer = Catapult_sqlite.Writer.with_ () in
+  Trace.setup_collector (Catapult_sqlite.trace_collector_of_writer writer);
 
   Trace.set_process_name "catapult-daemon";
   Trace.set_thread_name "main";
