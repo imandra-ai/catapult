@@ -15,9 +15,9 @@ The traces are `.json` files (or compressed `.json.gz`). They can be viewed in:
 
 Instrument your code using [ocaml-trace](https://github.com/c-cube/ocaml-trace/).
 In the program's entry point, use one of the Catapult libraries
-backend to forward events from [Trace] into the place of your choice.
+backend to forward events from `Trace` into the place of your choice.
 
-An example can be found in 'examples/heavy/heavy.ml'
+An example can be found in `examples/heavy/heavy.ml`.
 
 ## sqlite
 
