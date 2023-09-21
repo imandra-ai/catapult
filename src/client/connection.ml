@@ -1,6 +1,6 @@
 open Catapult_utils
-module P = Catapult
-module Atomic = P.Atomic_shim_
+module Atomic = Catapult.Atomic_shim_
+module Thread_local = Catapult.Thread_local
 
 let ( let@ ) = ( @@ )
 let default_addr = Endpoint_address.default

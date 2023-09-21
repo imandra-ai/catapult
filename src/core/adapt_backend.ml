@@ -1,7 +1,16 @@
 module Trace = Trace_core
+module A = Atomic_shim_
+module TLS = Thread_local
 
 module type BACKEND = Backend.S
 module type COLLECTOR = Trace.Collector.S
+
+module Span_tbl = Hashtbl.Make (struct
+  type t = int64
+
+  let equal = Int64.equal
+  let hash = Hashtbl.hash
+end)
 
 type backend = (module BACKEND)
 
@@ -10,12 +19,22 @@ open Event_type
 let pid = Unix.getpid ()
 let now_ = Clock.now_us
 
-type full_arg = [ `Float of float | Trace.user_data ]
+type full_arg = Trace.user_data
 
-let span_gen_ = Atomic_shim_.make 0
+(** Counter used to allocate fresh spans *)
+let span_gen_ = A.make 0
 
-let k_span_info : (string * [ `Sync | `Async ]) Trace.Meta_map.Key.t =
+type span_info = { mutable data: (string * Trace.user_data) list }
+(** Information for an in-flight span *)
+
+(** Key for accessing span info in manual spans *)
+let k_span_info : (string * [ `Sync | `Async ] * span_info) Trace.Meta_map.Key.t
+    =
   Trace.Meta_map.Key.create ()
+
+(** per-thread table to access span info from implicit spans *)
+let span_info_tbl_ : span_info Span_tbl.t TLS.t =
+  TLS.create ~init:(fun ~t_id:_ -> Span_tbl.create 8) ~close:ignore ()
 
 module Mk_collector (B : BACKEND) : COLLECTOR = struct
   (** actually emit an event via the backend *)
@@ -32,45 +51,84 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
 
   let with_span ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data name f =
     let start = now_ () in
-    let sp = Trace.Collector.dummy_span in
+    let span = A.fetch_and_add span_gen_ 1 |> Int64.of_int in
+
+    let info_tbl = TLS.get_or_create span_info_tbl_ in
+    let info = { data } in
+    Span_tbl.add info_tbl span info;
 
     let finally () : unit =
       let now = now_ () in
       let dur = now -. start in
       let args =
-        (data
-          : (string * Trace_core.user_data) list
+        (info.data
+          : (string * Trace.user_data) list
           :> (string * full_arg) list)
       in
+      Span_tbl.remove info_tbl span;
       emit_real_ ~args name ~ts_us:start ~dur X
     in
-    Fun.protect ~finally (fun () -> f sp)
+
+    try
+      let x = f span in
+      finally ();
+      x
+    with e ->
+      let bt = Printexc.get_raw_backtrace () in
+      finally ();
+      Printexc.raise_with_backtrace e bt
+
+  let add_data_to_span span data =
+    if data <> [] then (
+      let info_tbl = TLS.get_or_create span_info_tbl_ in
+      match Span_tbl.find_opt info_tbl span with
+      | None -> ()
+      | Some info -> info.data <- List.rev_append data info.data
+    )
 
   let enter_manual_span ~parent ~flavor ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data
-      name : Trace_core.explicit_span =
-    let span = Int64.of_int (Atomic_shim_.fetch_and_add span_gen_ 1) in
+      name : Trace.explicit_span =
+    let span = Int64.of_int (A.fetch_and_add span_gen_ 1) in
     let flavor = Option.value ~default:`Sync flavor in
     let args =
-      (data : (string * Trace_core.user_data) list :> (string * full_arg) list)
+      (data : (string * Trace.user_data) list :> (string * full_arg) list)
     in
     (match flavor with
     | `Sync ->
       emit_real_ ~cat:[ "async" ] ~args name ~id:(Int64.to_string span) B
     | `Async ->
       emit_real_ ~cat:[ "async" ] ~args name ~id:(Int64.to_string span) A_b);
-    let meta = Trace_core.Meta_map.(empty |> add k_span_info (name, flavor)) in
-    { Trace_core.span; meta }
+    let meta =
+      (* [data] has already been emitted on entry, so we only store additional
+         meta data in this *)
+      let info = { data = [] } in
+      Trace.Meta_map.(empty |> add k_span_info (name, flavor, info))
+    in
+    { Trace.span; meta }
 
-  let exit_manual_span (es : Trace_core.explicit_span) : unit =
-    let name, flavor = Trace_core.Meta_map.find_exn k_span_info es.meta in
+  let exit_manual_span (es : Trace.explicit_span) : unit =
+    let name, flavor, info = Trace.Meta_map.find_exn k_span_info es.meta in
+    (* emit data added after span creation *)
+    let args =
+      (info.data : (string * Trace.user_data) list :> (string * full_arg) list)
+    in
     match flavor with
-    | `Sync -> emit_real_ name E
+    | `Sync -> emit_real_ ~args name E
     | `Async ->
-      emit_real_ ~cat:[ "async" ] name ~id:(es.span |> Int64.to_string) A_e
+      emit_real_ ~cat:[ "async" ] ~args name
+        ~id:(es.span |> Int64.to_string)
+        A_e
 
-  let counter_int name n : unit = emit_real_ "counter" C ~args:[ name, `Int n ]
+  let add_data_to_manual_span (es : Trace.explicit_span) data =
+    if data <> [] then (
+      let _, _, info = Trace.Meta_map.find_exn k_span_info es.meta in
+      info.data <- List.rev_append data info.data
+    )
 
-  let counter_float name n : unit =
+  let counter_int ~data:_ name n : unit =
+    emit_real_ "counter" C ~args:[ name, `Int n ]
+
+  let counter_float ~data:_ name n : unit =
     emit_real_ "counter" C ~args:[ name, `Float n ]
 
   let message ?span:_ ~data msg : unit =

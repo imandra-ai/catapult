@@ -1,5 +1,4 @@
-open Catapult_utils
-module TL = Thread_local
+module TL = Catapult.Thread_local
 
 let tl : int ref TL.t =
   TL.create ~init:(fun ~t_id:_ -> ref 0) ~close:(fun _ -> ()) ()

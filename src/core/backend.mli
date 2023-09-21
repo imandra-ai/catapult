@@ -8,7 +8,7 @@
     if no backend is installed, the tracing functions will do nothing.
 *)
 
-type arg = [ `Float of float | Trace_core.user_data ]
+type arg = Trace_core.user_data
 
 module type S = sig
   val emit :

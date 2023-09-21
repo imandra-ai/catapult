@@ -1,6 +1,7 @@
 open Catapult_utils
 module Atomic = Catapult.Atomic_shim_
 module Clock = Catapult.Clock
+module TLS = Catapult.Thread_local
 
 type event = Ser.Event.t
 
@@ -45,19 +46,19 @@ module Make (A : ARG) : Catapult.BACKEND = struct
     )
 
   (* per-thread buffer *)
-  let buf : local_buf Thread_local.t =
-    Thread_local.create
+  let buf : local_buf TLS.t =
+    TLS.create
       ~init:(fun ~t_id ->
         { t_id; buf = Buffer.create 1024; n_evs = 0; evs = [] })
       ~close:flush_batch ()
 
   let teardown () =
-    Thread_local.clear buf;
+    TLS.clear buf;
     Writer.close writer
 
   let tick () =
     let now = Clock.now_us () in
-    Thread_local.iter buf ~f:(check_batch ~now)
+    TLS.iter buf ~f:(check_batch ~now)
 
   module Out = Catapult_utils.Json_out
 
@@ -79,7 +80,7 @@ module Make (A : ARG) : Catapult.BACKEND = struct
   let emit ~id ~name ~ph ~tid ~pid ~cat ~ts_us ~args ~stack ~dur ?extra () :
       unit =
     (* access local buffer to write and add to batch *)
-    let lbuf = Thread_local.get_or_create buf in
+    let lbuf = TLS.get_or_create buf in
 
     let j =
       let buf = lbuf.buf in

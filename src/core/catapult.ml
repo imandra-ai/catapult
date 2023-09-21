@@ -33,5 +33,6 @@ let trace_collector_of_backend : backend -> Trace_core.collector =
 
 module Atomic_shim_ = Atomic_shim_
 module Clock = Clock
+module Thread_local = Thread_local
 
 (**/**)

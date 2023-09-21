@@ -1,5 +1,4 @@
-module P = Catapult
-module Atomic = P.Atomic_shim_
+module Atomic = Atomic_shim_
 
 (* emulate thread local storage *)
 module Int_map = Map.Make (struct

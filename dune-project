@@ -15,7 +15,7 @@
     mtime)
   (depends
     base-threads
-    (trace (>= 0.3))
+    (trace (>= 0.4))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
 
