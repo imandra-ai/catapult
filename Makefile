@@ -1,5 +1,5 @@
 
-OPTS=--profile=release
+OPTS=--profile=release --ignore-promoted-rules
 all:
 	@dune build @all $(OPTS)
 
@@ -11,6 +11,9 @@ clean:
 
 fmt:
 	@dune build @fmt --display=quiet --auto-promote
+
+lint:
+	@dune build @lint
 
 WATCH ?= @all
 watch:

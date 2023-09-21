@@ -18,9 +18,9 @@
 
 (rule
  (alias lint)
- (targets Bare_encoding.ml Bare_encoding.mli)
+ (targets bare_encoding.ml bare_encoding.mli)
  (mode promote)
  (action
   (progn
-   (copy %{lib:bare_encoding:Bare_encoding.ml} Bare_encoding.ml)
-   (copy %{lib:bare_encoding:Bare_encoding.mli} Bare_encoding.mli))))
+   (copy %{lib:bare_encoding:bare_encoding.ml} bare_encoding.ml)
+   (copy %{lib:bare_encoding:bare_encoding.mli} bare_encoding.mli))))
