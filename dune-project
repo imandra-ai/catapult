@@ -12,6 +12,7 @@
   (name catapult)
   (synopsis "Tracing system based on the Catapult/TEF format")
   (depopts
+    thread-local-storage
     mtime)
   (depends
     base-threads

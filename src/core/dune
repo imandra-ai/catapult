@@ -4,6 +4,9 @@
  (libraries
   threads
   (re_export trace.core)
+  (select thread_local.ml from
+    (thread-local-storage -> thread_local.real.ml)
+    (-> thread_local.stub.ml))
   (select
    clock.ml
    from

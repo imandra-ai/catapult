@@ -11,7 +11,7 @@
 
 type 'a t
 
-val create : init:(t_id:int -> 'a) -> close:('a -> unit) -> unit -> 'a t
+val create : init:(unit -> 'a) -> close:('a -> unit) -> unit -> 'a t
 val size : _ t -> int
 val get_or_create : 'a t -> 'a
 val remove : _ t -> t_id:int -> unit
