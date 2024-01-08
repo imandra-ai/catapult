@@ -1,7 +1,7 @@
 open Catapult_utils
 module Atomic = Catapult.Atomic_shim_
 module Clock = Catapult.Clock
-module TLS = Catapult.Thread_local
+module TLS = Thread_local_storage
 
 type event = Ser.Event.t
 
@@ -46,11 +46,10 @@ module Make (A : ARG) : Catapult.BACKEND = struct
     )
 
   (* per-thread buffer *)
-  let buf : local_buf TLS.t =
-    TLS.create
-      ~init:(fun ~t_id ->
+  let buf : local_buf TLS.key =
+    TLS.new_key (fun () ->
+        let t_id = Thread.id @@ Thread.self () in
         { t_id; buf = Buffer.create 1024; n_evs = 0; evs = [] })
-      ~close:flush_batch ()
 
   let teardown () =
     TLS.clear buf;

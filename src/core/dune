@@ -3,10 +3,8 @@
  (modules_without_implementation backend impl)
  (libraries
   threads
+  thread-local-storage
   (re_export trace.core)
-  (select thread_local.ml from
-    (thread-local-storage -> thread_local.real.ml)
-    (-> thread_local.stub.ml))
   (select
    clock.ml
    from

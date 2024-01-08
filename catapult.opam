@@ -14,7 +14,7 @@ depends: [
   "odoc" {with-doc}
   "ocaml" {>= "4.08"}
 ]
-depopts: ["mtime"]
+depopts: ["thread-local-storage" "mtime"]
 build: [
   ["dune" "subst"] {dev}
   [

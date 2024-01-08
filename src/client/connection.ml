@@ -1,6 +1,7 @@
 open Catapult_utils
 module Atomic = Catapult.Atomic_shim_
-module Thread_local = Catapult.Thread_local
+module TLS = Thread_local_storage
+module Int_map = Map.Make (Int)
 
 let ( let@ ) = ( @@ )
 let default_addr = Endpoint_address.default
@@ -65,20 +66,48 @@ module Logger = struct
     logger
 end
 
+let k_logger : Logger.t option ref TLS.key = TLS.new_key (fun () -> ref None)
+
 type t = {
-  per_t: Logger.t Thread_local.t;
+  per_t: Logger.t Int_map.t Atomic.t;  (** Keep an eye on the loggers *)
   addr: Endpoint_address.t;
   trace_id: string;
   ctx: Zmq.Context.t;
   mutable closed: bool;
 }
 
+let add_per_t (self : t) tid logger : unit =
+  while
+    let old = Atomic.get self.per_t in
+    not (Atomic.compare_and_set self.per_t old (Int_map.add tid logger old))
+  do
+    ()
+  done
+
+let remove_per_t (self : t) tid =
+  while
+    let old = Atomic.get self.per_t in
+    not (Atomic.compare_and_set self.per_t old (Int_map.remove tid old))
+  do
+    ()
+  done
+
+let[@inline never] new_logger (self : t) : Logger.t =
+  let t_self = Thread.self () in
+  let t_id = Thread.id t_self in
+  let logger =
+    Logger.create ~ctx:self.ctx ~addr:self.addr ~trace_id:self.trace_id ~t_id ()
+  in
+  add_per_t self t_id logger;
+  Gc.finalise (fun _ -> remove_per_t self t_id) t_self;
+  logger
+
 let close (self : t) =
   if not self.closed then (
     self.closed <- true;
     try
-      Thread_local.iter self.per_t ~f:Logger.close;
-      Thread_local.clear self.per_t;
+      let loggers = Atomic.exchange self.per_t Int_map.empty in
+      Int_map.iter (fun _ l -> Logger.close l) loggers;
       Zmq.Context.terminate self.ctx
     with e ->
       Printf.eprintf "catapult: error during exit: %s\n%!"
@@ -88,18 +117,22 @@ let close (self : t) =
 let create ~(addr : Endpoint_address.t) ?(trace_id = "trace") () : t =
   let ctx = Zmq.Context.create () in
   Zmq.Context.set_io_threads ctx 6;
-  let per_t =
-    Thread_local.create
-      ~init:(fun ~t_id -> Logger.create ~ctx ~addr ~trace_id ~t_id ())
-      ~close:Logger.close ()
-  in
+  let per_t = Atomic.make Int_map.empty in
   let self = { per_t; ctx; addr; trace_id; closed = false } in
   Gc.finalise close self;
   self
 
+let[@inline] get_logger (self : t) : Logger.t =
+  let r = TLS.get k_logger in
+  match !r with
+  | Some l -> l
+  | None ->
+    let logger = new_logger self in
+    logger
+
 let send_msg (self : t) ~pid ~now (ev : Ser.Event.t) : unit =
   if not self.closed then (
-    let logger = Thread_local.get_or_create self.per_t in
+    let logger = get_logger self in
     let msg =
       Ser.Client_message.Client_emit
         { Ser.Client_emit.trace_id = self.trace_id; ev }

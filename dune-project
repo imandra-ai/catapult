@@ -12,12 +12,12 @@
   (name catapult)
   (synopsis "Tracing system based on the Catapult/TEF format")
   (depopts
-    thread-local-storage
     mtime)
   (depends
     base-threads
     (trace (>= 0.4))
     (odoc :with-doc)
+    thread-local-storage
     (ocaml (>= "4.08"))))
 
 (package
@@ -26,6 +26,7 @@
   (depends
     (sqlite3 (>= "5.0"))
     directories
+    thread-local-storage
     (catapult (= :version))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
@@ -36,6 +37,7 @@
   (depends
     (catapult (= :version))
     (odoc :with-doc)
+    thread-local-storage
     (zmq (>= "5.0"))
     (ocaml (>= "4.08"))))
 

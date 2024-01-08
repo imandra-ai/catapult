@@ -1,6 +1,6 @@
 module Trace = Trace_core
 module A = Atomic_shim_
-module TLS = Thread_local
+module TLS = Thread_local_storage
 
 module type BACKEND = Backend.S
 module type COLLECTOR = Trace.Collector.S
@@ -33,8 +33,8 @@ let k_span_info : (string * [ `Sync | `Async ] * span_info) Trace.Meta_map.Key.t
   Trace.Meta_map.Key.create ()
 
 (** per-thread table to access span info from implicit spans *)
-let span_info_tbl_ : span_info Span_tbl.t TLS.t =
-  TLS.create ~init:(fun ~t_id:_ -> Span_tbl.create 8) ~close:ignore ()
+let span_info_tbl_ : span_info Span_tbl.t TLS.key =
+  TLS.new_key (fun () -> Span_tbl.create 8)
 
 module Mk_collector (B : BACKEND) : COLLECTOR = struct
   (** actually emit an event via the backend *)
@@ -53,7 +53,7 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
     let start = now_ () in
     let span = A.fetch_and_add span_gen_ 1 |> Int64.of_int in
 
-    let info_tbl = TLS.get_or_create span_info_tbl_ in
+    let info_tbl = TLS.get span_info_tbl_ in
     let info = { data } in
     Span_tbl.add info_tbl span info;
 
@@ -80,7 +80,7 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
 
   let add_data_to_span span data =
     if data <> [] then (
-      let info_tbl = TLS.get_or_create span_info_tbl_ in
+      let info_tbl = TLS.get span_info_tbl_ in
       match Span_tbl.find_opt info_tbl span with
       | None -> ()
       | Some info -> info.data <- List.rev_append data info.data

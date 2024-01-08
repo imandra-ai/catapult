@@ -2,4 +2,5 @@
  (name catapult_client)
  (public_name catapult-client)
  (synopsis "Client library for the catapult daemon")
- (libraries trace.core catapult catapult.utils zmq unix trace))
+ (libraries trace.core catapult catapult.utils thread-local-storage
+            zmq unix trace))
