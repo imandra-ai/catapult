@@ -24,12 +24,15 @@ type full_arg = Trace.user_data
 (** Counter used to allocate fresh spans *)
 let span_gen_ = A.make 0
 
-type span_info = { mutable data: (string * Trace.user_data) list }
+type span_info = {
+  name: string;
+  mutable data: (string * Trace.user_data) list;
+  start: float;
+}
 (** Information for an in-flight span *)
 
 (** Key for accessing span info in manual spans *)
-let k_span_info : (string * [ `Sync | `Async ] * span_info) Trace.Meta_map.Key.t
-    =
+let k_span_info : (string * [ `Sync | `Async ] * span_info) Trace.Meta_map.key =
   Trace.Meta_map.Key.create ()
 
 (** per-thread table to access span info from implicit spans *)
@@ -49,33 +52,39 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
     B.emit ~id ~pid ~cat ~tid ~ts_us ~stack ~args ~name ~ph:ev ~dur ?extra ();
     ()
 
-  let with_span ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data name f =
+  let enter_span ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data name : Trace.span =
     let start = now_ () in
     let span = A.fetch_and_add span_gen_ 1 |> Int64.of_int in
 
     let info_tbl = TLS.get_or_create span_info_tbl_ in
-    let info = { data } in
+    let info = { name; data; start } in
     Span_tbl.add info_tbl span info;
+    span
 
-    let finally () : unit =
+  let exit_span (span : Trace.span) : unit =
+    let info_tbl = TLS.get_or_create span_info_tbl_ in
+    match Span_tbl.find info_tbl span with
+    | exception Not_found -> ()
+    | info ->
       let now = now_ () in
-      let dur = now -. start in
+      let dur = now -. info.start in
       let args =
         (info.data
           : (string * Trace.user_data) list
           :> (string * full_arg) list)
       in
       Span_tbl.remove info_tbl span;
-      emit_real_ ~args name ~ts_us:start ~dur X
-    in
+      emit_real_ ~args info.name ~ts_us:info.start ~dur X
 
+  let with_span ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data name f =
+    let span = enter_span ~__FUNCTION__ ~__FILE__ ~__LINE__ ~data name in
     try
       let x = f span in
-      finally ();
+      exit_span span;
       x
     with e ->
       let bt = Printexc.get_raw_backtrace () in
-      finally ();
+      exit_span span;
       Printexc.raise_with_backtrace e bt
 
   let add_data_to_span span data =
@@ -101,7 +110,7 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
     let meta =
       (* [data] has already been emitted on entry, so we only store additional
          meta data in this *)
-      let info = { data = [] } in
+      let info = { name; start = 0.; data = [] } in
       Trace.Meta_map.(empty |> add k_span_info (name, flavor, info))
     in
     { Trace.span; meta }
@@ -142,6 +151,7 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
   let name_thread name = meta_ "thread_name" ~args:[ "name", `String name ]
   let name_process name = meta_ "process_name" ~args:[ "name", `String name ]
   let shutdown = B.teardown
+  let extension_event _ = ()
 end
 
 let[@inline] adapt (b : backend) : (module COLLECTOR) =
