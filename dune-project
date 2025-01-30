@@ -24,7 +24,8 @@
   (synopsis "Sqlite-based backend for Catapult tracing")
   (depends
     (sqlite3 (>= "5.0"))
-    directories
+    (directories (>= "0.6"))
+    fpath
     (catapult (= :version))
     (odoc :with-doc)
     (ocaml (>= "4.08"))))
@@ -45,5 +46,6 @@
     (odoc :with-doc)
     (catapult (= :version))
     (catapult-sqlite (= :version))
+    fpath
     (zmq (>= "5.0"))
     (logs (>= "0.7"))))

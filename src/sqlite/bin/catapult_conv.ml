@@ -39,6 +39,7 @@ let write_json ~files ~out () =
       else (
         match Dir.data_dir with
         | Some d ->
+          let d = Fpath.to_string d in
           let file_in_d = Filename.concat d file in
           if Sys.file_exists file_in_d then
             file_in_d
@@ -48,7 +49,7 @@ let write_json ~files ~out () =
               fail ()
             else
               Filename.concat d files.(Array.length files - 1)
-            (* last entry *)
+              (* last entry *)
           ) else
             fail ()
         | None -> fail ()
@@ -61,9 +62,9 @@ let write_json ~files ~out () =
     let db = Db.db_open ~mode:`NO_CREATE file in
     let@ () =
       Fun.protect ~finally:(fun () ->
-          while not (Db.db_close db) do
-            ()
-          done)
+        while not (Db.db_close db) do
+          ()
+        done)
     in
     Db.exec db "PRAGMA journal=delete;" |> check_db_;
 
@@ -150,6 +151,7 @@ let () =
     match Dir.data_dir with
     | None -> failwith "please provide at least one file"
     | Some d ->
+      let d = Fpath.to_string d in
       let files = list_dir d in
       Printf.printf "no file provided.\n";
       if files <> [] then (

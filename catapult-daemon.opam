@@ -12,6 +12,7 @@ depends: [
   "odoc" {with-doc}
   "catapult" {= version}
   "catapult-sqlite" {= version}
+  "fpath"
   "zmq" {>= "5.0"}
   "logs" {>= "0.7"}
 ]
