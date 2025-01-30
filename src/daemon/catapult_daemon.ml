@@ -150,18 +150,18 @@ end = struct
     let now = now_us () in
     Str_tbl.filter_map_inplace
       (fun trace_id db ->
-        let age = now -. Atomic.get db.last_write in
-        if age > close_after_us then (
-          Trace.message "db.gc" ~data:(fun () ->
+          let age = now -. Atomic.get db.last_write in
+          if age > close_after_us then (
+            Trace.message "db.gc" ~data:(fun () ->
               [
                 "trace_id", `String trace_id;
                 "age", `Int (int_of_float (age *. 1e-6));
               ]);
-          close_ self ~trace_id db;
-          (* collect *)
-          None
-        ) else
-          Some db)
+            close_ self ~trace_id db;
+            (* collect *)
+            None
+          ) else
+            Some db)
       self.dbs
 
   let create ~dir () : t =
@@ -260,10 +260,10 @@ let setup_logs ~debug () =
   Logs.set_reporter (Logs.format_reporter ());
   Logs.set_level ~all:true
     (Some
-       (if debug then
-         Logs.Debug
-       else
-         Logs.Info));
+        (if debug then
+            Logs.Debug
+          else
+            Logs.Info));
   let lock = Mutex.create () in
   Logs.set_reporter_mutex
     ~lock:(fun () -> Mutex.lock lock)
@@ -284,7 +284,7 @@ let () =
     @@
     match Dir.data_dir with
     | None -> "."
-    | Some d -> d
+    | Some d -> Fpath.to_string d
   in
   let addr = ref Endpoint_address.default in
   let set_addr s = addr := Endpoint_address.of_string_exn s in
@@ -303,9 +303,9 @@ let () =
 
   setup_logs ~debug:!debug ();
   Log.info (fun k ->
-      k "daemon: listen on: %s, store traces in directory: %s"
-        (Endpoint_address.to_string !addr)
-        !dir);
+    k "daemon: listen on: %s, store traces in directory: %s"
+      (Endpoint_address.to_string !addr)
+      !dir);
 
   let writer = Writer.create ~dir:!dir () in
   let server = Server.create ~writer ~addr:!addr () in
