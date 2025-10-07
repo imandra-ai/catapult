@@ -113,7 +113,7 @@ module Mk_collector (B : BACKEND) : COLLECTOR = struct
       let info = { name; start = 0.; data = [] } in
       Trace.Meta_map.(empty |> add k_span_info (name, flavor, info))
     in
-    { Trace.span; meta }
+    { Trace.span; meta; trace_id=Trace.Collector.dummy_trace_id }
 
   let exit_manual_span (es : Trace.explicit_span) : unit =
     let name, flavor, info = Trace.Meta_map.find_exn k_span_info es.meta in
